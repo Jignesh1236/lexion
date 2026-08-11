@@ -87,6 +87,9 @@ function Overlay() {
       const peer = new LexionPeer(saved.username, {
         onStatus: pushStatus,
         onMessage: addIncoming
+      }, {
+        audioInputId: saved.audioInputId || '',
+        audioOutputId: saved.audioOutputId || ''
       });
       peerRef.current = peer;
       if (saved.partner) peer.connect(saved.partner);
@@ -94,6 +97,54 @@ function Overlay() {
     },
     [pushStatus, addIncoming]
   );
+
+  const applyAudioDevices = useCallback(
+    async (inputId, outputId) => {
+      const peer = peerRef.current;
+      if (!peer) return;
+      try {
+        peer.changeAudioOutput(outputId || '');
+      } catch (err) {
+        console.warn('changeAudioOutput error:', err);
+      }
+      try {
+        if (peer.localStream) {
+          await peer.changeAudioInput(inputId || '');
+          if (peer.currentCall && peer.localStream) {
+            const newTrack = peer.localStream.getAudioTracks()[0];
+            if (newTrack) {
+              const oldTrack = peer.micTrack;
+              const wasEnabled = oldTrack ? oldTrack.enabled : false;
+              try {
+                const sender = peer.currentCall.peerConnection
+                  ?.getSenders
+                  ?.()
+                  ?.find((s) => s.track && s.track.kind === 'audio');
+                if (sender) {
+                  await sender.replaceTrack(newTrack);
+                }
+              } catch (err) {
+                console.warn('replaceTrack failed, falling back to reconnect:', err);
+              }
+              peer.micTrack = newTrack;
+              if (peer.micOn) newTrack.enabled = true;
+              else newTrack.enabled = wasEnabled && !!peer.micOn;
+            }
+          }
+        } else {
+          peer.audioInputId = inputId || '';
+        }
+      } catch (err) {
+        console.warn('changeAudioInput error:', err);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!window.overlay) window.overlay = {};
+    window.overlay.applyAudioDevices = applyAudioDevices;
+  }, [applyAudioDevices]);
 
   useEffect(() => {
     let cancelled = false;

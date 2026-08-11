@@ -12,7 +12,7 @@ function sanitizePeerId(value) {
 }
 
 export class LexionPeer {
-  constructor(username, callbacks = {}) {
+  constructor(username, callbacks = {}, audioOpts = {}) {
     this.cbs = callbacks;
     this.peer = null;
     this.currentCall = null;
@@ -29,6 +29,8 @@ export class LexionPeer {
     this.disposed = false;
     this.myPeerId = sanitizePeerId(username);
     this.partnerPeerId = null;
+    this.audioInputId = audioOpts.audioInputId || '';
+    this.audioOutputId = audioOpts.audioOutputId || '';
     this.state = {
       phase: 'starting',
       connected: false,
@@ -90,17 +92,46 @@ export class LexionPeer {
 
   async ensureMic() {
     if (this.localStream) return this.localStream;
-    this.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      },
-      video: false
-    });
+    const audio = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    };
+    if (this.audioInputId) audio.deviceId = { exact: this.audioInputId };
+    try {
+      this.localStream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
+    } catch (err) {
+      if (this.audioInputId && err && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError' || err.constraintName === 'deviceId')) {
+        console.warn('[LexionPeer] saved mic device not found, falling back to default');
+        this.audioInputId = '';
+        this.localStream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
+      } else {
+        throw err;
+      }
+    }
     this.micTrack = this.localStream.getAudioTracks()[0];
     if (this.micTrack) this.micTrack.enabled = false;
     return this.localStream;
+  }
+
+  async changeAudioInput(deviceId) {
+    const nextId = deviceId || '';
+    if (this.audioInputId === nextId && this.localStream) return this.localStream;
+    this.audioInputId = nextId;
+    if (this.localStream) {
+      this.localStream.getTracks().forEach((t) => t.stop());
+      this.localStream = null;
+      this.micTrack = null;
+    }
+    return this.ensureMic();
+  }
+
+  changeAudioOutput(deviceId) {
+    this.audioOutputId = deviceId || '';
+    const audio = document.getElementById('lexion-remote-audio');
+    if (audio && typeof audio.setSinkId === 'function' && this.audioOutputId) {
+      audio.setSinkId(this.audioOutputId).catch((err) => console.warn('[LexionPeer] setSinkId failed:', err));
+    }
   }
 
   async connect(partnerId) {
@@ -204,6 +235,9 @@ export class LexionPeer {
         audio.setAttribute('playsinline', '');
         audio.setAttribute('webkit-playsinline', '');
         document.body.appendChild(audio);
+      }
+      if (typeof audio.setSinkId === 'function' && this.audioOutputId) {
+        audio.setSinkId(this.audioOutputId).catch((err) => console.warn('[LexionPeer] setSinkId failed:', err));
       }
       audio.srcObject = remoteStream;
       const playPromise = audio.play();
