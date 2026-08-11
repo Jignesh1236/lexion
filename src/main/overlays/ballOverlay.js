@@ -3,6 +3,15 @@ import { join } from 'path';
 
 let overlayWin = null;
 let ipcReady = false;
+let pollTimer = null;
+
+let interactiveAreas = [];
+let dragging = false;
+let interactive = false;
+let ignoreLockUntil = 0;
+
+const POLL_INTERVAL = 25;
+const HIT_PAD = 10;
 
 const visibilityListeners = [];
 
@@ -12,6 +21,80 @@ export function onOverlayVisibilityChange(listener) {
 
 function notifyVisibilityChange() {
   for (const listener of visibilityListeners) listener();
+}
+
+function pointInArea(px, py, area) {
+  if (area.type === 'rect') {
+    return (
+      px >= area.x - HIT_PAD &&
+      px <= area.x + area.w + HIT_PAD &&
+      py >= area.y - HIT_PAD &&
+      py <= area.y + area.h + HIT_PAD
+    );
+  }
+  if (area.type === 'circle') {
+    const dx = px - area.x;
+    const dy = py - area.y;
+    const r = area.r + HIT_PAD;
+    return dx * dx + dy * dy <= r * r;
+  }
+  return false;
+}
+
+function updateInteractive() {
+  if (!overlayWin) return;
+
+  const bounds = screen.getPrimaryDisplay().bounds;
+  const cursor = screen.getCursorScreenPoint();
+  const px = cursor.x - bounds.x;
+  const py = cursor.y - bounds.y;
+  const now = Date.now();
+
+  let shouldInteract = false;
+  if (dragging) {
+    shouldInteract = true;
+  } else if (now < ignoreLockUntil) {
+    shouldInteract = false;
+  } else {
+    for (const area of interactiveAreas) {
+      if (pointInArea(px, py, area)) {
+        shouldInteract = true;
+        break;
+      }
+    }
+  }
+
+  if (shouldInteract && !interactive) {
+    interactive = true;
+    overlayWin.setIgnoreMouseEvents(false);
+  } else if (!shouldInteract && interactive) {
+    interactive = false;
+    overlayWin.setIgnoreMouseEvents(true, { forward: true });
+  }
+}
+
+function registerOverlayIpc() {
+  if (ipcReady) return;
+  ipcReady = true;
+
+  ipcMain.on('overlay:set-areas', (event, areas) => {
+    if (event.sender !== overlayWin?.webContents) return;
+    interactiveAreas = Array.isArray(areas) ? areas : [];
+    updateInteractive();
+  });
+
+  ipcMain.on('overlay:set-drag', (event, on) => {
+    if (event.sender !== overlayWin?.webContents) return;
+    dragging = !!on;
+    if (dragging) interactive = false;
+    updateInteractive();
+  });
+
+  ipcMain.on('overlay:force-ignore', (event) => {
+    if (event.sender !== overlayWin?.webContents) return;
+    ignoreLockUntil = Date.now() + 400;
+    updateInteractive();
+  });
 }
 
 export function createBallOverlay() {
@@ -52,18 +135,17 @@ export function createBallOverlay() {
   }
 
   registerOverlayIpc();
+  stopPolling();
+  pollTimer = setInterval(updateInteractive, POLL_INTERVAL);
 
   return overlayWin;
 }
 
-function registerOverlayIpc() {
-  if (ipcReady) return;
-  ipcReady = true;
-
-  ipcMain.on('overlay:set-interactive', (event, interactive) => {
-    if (event.sender !== overlayWin?.webContents) return;
-    overlayWin.setIgnoreMouseEvents(!interactive, { forward: true });
-  });
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
 }
 
 export function getBallOverlay() {
@@ -72,6 +154,7 @@ export function getBallOverlay() {
 
 export function showBallOverlay() {
   if (!overlayWin) return;
+  interactive = false;
   overlayWin.show();
   overlayWin.setIgnoreMouseEvents(true, { forward: true });
   notifyVisibilityChange();
@@ -79,6 +162,7 @@ export function showBallOverlay() {
 
 export function hideBallOverlay() {
   if (!overlayWin) return;
+  interactive = false;
   overlayWin.hide();
   notifyVisibilityChange();
 }

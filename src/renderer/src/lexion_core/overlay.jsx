@@ -7,18 +7,23 @@ import './overlay.css';
 
 const BALL_SIZE = 72;
 
-function pointInRect(x, y, rect) {
-  if (!rect) return false;
-  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-}
+function buildInteractiveAreas(ballRect, chatRect, setupRect) {
+  const areas = [];
 
-function hitCircle(x, y, rect, size) {
-  if (!rect) return false;
-  const cx = rect.left + size / 2;
-  const cy = rect.top + size / 2;
-  const dx = x - cx;
-  const dy = y - cy;
-  return dx * dx + dy * dy <= (size / 2) * (size / 2);
+  if (ballRect) {
+    const r = ballRect.width / 2;
+    areas.push({ type: 'circle', x: ballRect.left + r, y: ballRect.top + r, r });
+  }
+
+  if (chatRect) {
+    areas.push({ type: 'rect', x: chatRect.left, y: chatRect.top, w: chatRect.width, h: chatRect.height });
+  }
+
+  if (setupRect) {
+    areas.push({ type: 'rect', x: setupRect.left, y: setupRect.top, w: setupRect.width, h: setupRect.height });
+  }
+
+  return areas;
 }
 
 function Overlay() {
@@ -39,10 +44,31 @@ function Overlay() {
   const ballRectRef = useRef(null);
   const chatRef = useRef(null);
   const setupRef = useRef(null);
-  const interactiveRef = useRef(false);
   const draggingRef = useRef(false);
   const chatOpenRef = useRef(false);
   chatOpenRef.current = chatOpen;
+
+  const reportAreas = useCallback(() => {
+    const ballRect = ballRectRef.current?.getBoundingClientRect?.();
+    const chatRect = chatOpenRef.current ? chatRef.current?.getBoundingClientRect?.() : null;
+    const setupRect = setupRef.current?.getBoundingClientRect?.();
+    const areas = buildInteractiveAreas(ballRect, chatRect, setupRect);
+    window.overlay?.setAreas?.(areas);
+  }, []);
+
+  useEffect(() => {
+    reportAreas();
+    const interval = setInterval(reportAreas, 250);
+    window.addEventListener('resize', reportAreas);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('resize', reportAreas);
+    };
+  }, [reportAreas]);
+
+  useEffect(() => {
+    reportAreas();
+  }, [chatOpen, reportAreas]);
 
   const pushStatus = useCallback((next) => {
     setStatus((prev) => {
@@ -103,45 +129,10 @@ function Overlay() {
     return offPtt;
   }, []);
 
-  const isInsideInteractive = useCallback((x, y) => {
-    if (draggingRef.current) return true;
-
-    const ballRect = ballRectRef.current;
-    if (ballRect && hitCircle(x, y, ballRect, BALL_SIZE)) return true;
-
-    if (chatOpenRef.current) {
-      const panelRect = chatRef.current?.getBoundingClientRect();
-      if (pointInRect(x, y, panelRect)) return true;
-    }
-
-    const setupRect = setupRef.current?.getBoundingClientRect?.();
-    if (setupRect && pointInRect(x, y, setupRect)) return true;
-
-    return false;
-  }, []);
-
-  const updateInteractive = useCallback(
-    (x, y) => {
-      const inside = isInsideInteractive(x, y);
-      if (inside !== interactiveRef.current) {
-        interactiveRef.current = inside;
-        window.overlay?.setInteractive?.(inside);
-      }
-    },
-    [isInsideInteractive]
-  );
-
-  useEffect(() => {
-    const onMove = (event) => updateInteractive(event.clientX, event.clientY);
-    window.addEventListener('mousemove', onMove);
-    return () => window.removeEventListener('mousemove', onMove);
-  }, [updateInteractive]);
-
   useEffect(() => {
     const onBlur = () => {
-      interactiveRef.current = false;
-      window.overlay?.setInteractive?.(false);
       setChatOpen(false);
+      window.overlay?.forceIgnore?.();
     };
     window.addEventListener('blur', onBlur);
     return () => window.removeEventListener('blur', onBlur);
@@ -149,6 +140,12 @@ function Overlay() {
 
   const onBallClick = () => setChatOpen((open) => !open);
   const onToggleVoice = () => peerRef.current?.toggleMic();
+
+  const onDragChange = (dragging) => {
+    draggingRef.current = dragging;
+    window.overlay?.setDrag?.(dragging);
+    if (!dragging) reportAreas();
+  };
 
   const onSendMessage = (text) => {
     const ok = peerRef.current?.sendMessage(text);
@@ -180,12 +177,7 @@ function Overlay() {
         onPositionChange={setBallPos}
         onClick={onBallClick}
         onToggleVoice={onToggleVoice}
-        onDragChange={(dragging) => {
-          draggingRef.current = dragging;
-          if (!dragging) {
-            interactiveRef.current = false;
-          }
-        }}
+        onDragChange={onDragChange}
       />
 
       <Chat

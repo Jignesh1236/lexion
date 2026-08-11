@@ -28,6 +28,32 @@ function readDataFile(file) {
   }
 }
 
+function sanitizePeerId(value) {
+  if (!value) return null;
+  const clean = String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 48);
+  return clean || null;
+}
+
+function ensureDefaultConnectSettings() {
+  const connect = readDataFile('connect.json') || {};
+  if (connect.username) return connect;
+
+  const user = readDataFile('user.json');
+  const username = sanitizePeerId(user && (user.username || user.name));
+  if (!username) return connect;
+
+  connect.username = username;
+  connect.partner = connect.partner || '';
+  ensureDataDir();
+  writeFileSync(join(DATA_DIR, 'connect.json'), JSON.stringify(connect, null, 2));
+  return connect;
+}
+
 ipcMain.handle('app:save-data', (_event, file, data) => {
   ensureDataDir();
   const safeFile = basename(file);
@@ -157,7 +183,7 @@ app.whenReady().then(() => {
   createWindow();
   createBallOverlay();
   createTray();
-  applyHotkeys(readDataFile('connect.json'));
+  applyHotkeys(ensureDefaultConnectSettings());
   onOverlayVisibilityChange(refreshHotkeys);
 
   app.on('activate', () => {

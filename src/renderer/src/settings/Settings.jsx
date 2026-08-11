@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { sanitizePeerId } from '../utils/sanitizePeerId.js';
 import './settings.css';
 
 const SPECIAL = {
@@ -91,7 +92,7 @@ function statusText(status) {
   }
 }
 
-export default function Settings() {
+export default function Settings({ user }) {
   const [username, setUsername] = useState('');
   const [partner, setPartner] = useState('');
   const [pttAccel, setPttAccel] = useState('');
@@ -108,15 +109,22 @@ export default function Settings() {
 
   useEffect(() => {
     window.api.loadData('connect.json').then((data) => {
-      if (!data) return;
-      setUsername(data.username || '');
-      setPartner(data.partner || '');
-      setPttAccel(data.pttKey || '');
-      setPttLabel(data.pttLabel || 'None');
-      setToggleAccel(data.overlayToggleKey || '');
-      setToggleLabel(data.overlayToggleLabel || 'None');
+      if (data) {
+        setUsername(data.username || '');
+        setPartner(data.partner || '');
+        setPttAccel(data.pttKey || '');
+        setPttLabel(data.pttLabel || 'None');
+        setToggleAccel(data.overlayToggleKey || '');
+        setToggleLabel(data.overlayToggleLabel || 'None');
+      }
+
+      const derived = sanitizePeerId(user?.username || user?.name);
+      if (!data?.username && derived) {
+        setUsername(derived);
+        window.api.saveData('connect.json', { ...(data || {}), username: derived });
+      }
     });
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const off = window.lexion?.onStatus?.((next) => setStatus(next));
@@ -183,7 +191,7 @@ export default function Settings() {
       </p>
 
       <label className="settings-field">
-        <span>Your username (Peer ID)</span>
+        <span>Your username (Peer ID) — auto-filled from profile</span>
         <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. jignesh" />
       </label>
 

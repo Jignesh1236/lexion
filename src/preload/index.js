@@ -11,7 +11,9 @@ contextBridge.exposeInMainWorld('api', {
 });
 
 contextBridge.exposeInMainWorld('overlay', {
-  setInteractive: (interactive) => ipcRenderer.send('overlay:set-interactive', Boolean(interactive)),
+  setAreas: (areas) => ipcRenderer.send('overlay:set-areas', areas),
+  setDrag: (on) => ipcRenderer.send('overlay:set-drag', Boolean(on)),
+  forceIgnore: () => ipcRenderer.send('overlay:force-ignore'),
   openMain: () => ipcRenderer.send('app:open-main'),
   sendStatus: (status) => ipcRenderer.send('lexion:status', status),
   onPttToggle: (callback) => {
