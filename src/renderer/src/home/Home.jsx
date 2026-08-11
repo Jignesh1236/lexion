@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Settings from '../settings/Settings.jsx';
+import Preferences from '../preferences/Preferences.jsx';
 import Profile from '../profile/Profile.jsx';
 import { sanitizePeerId } from '../utils/sanitizePeerId.js';
 import './home.css';
@@ -29,6 +30,8 @@ export default function Home({ user, onUserSave }) {
     content = <Profile user={user} onSave={handleProfileSave} onBack={() => setActive('Home')} />;
   } else if (active === 'Settings') {
     content = <Settings user={user} />;
+  } else if (active === 'Preferences') {
+    content = <Preferences />;
   } else {
     content = (
       <>

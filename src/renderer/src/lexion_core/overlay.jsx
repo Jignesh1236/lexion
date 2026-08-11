@@ -178,6 +178,8 @@ function Overlay() {
         onClick={onBallClick}
         onToggleVoice={onToggleVoice}
         onDragChange={onDragChange}
+        onTalkStart={() => peerRef.current?.setMic(true)}
+        onTalkStop={() => peerRef.current?.setMic(false)}
       />
 
       <Chat

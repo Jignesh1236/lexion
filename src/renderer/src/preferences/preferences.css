@@ -1,0 +1,95 @@
+.preferences {
+  width: 42vw;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 1rem;
+
+  margin-left: 12rem;
+
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.preferences h2 {
+  margin: 0.5rem 0 0;
+
+  color: var(--color-text-secondary);
+
+  font-size: 15px;
+
+  font-weight: 600;
+
+  letter-spacing: 0.05em;
+
+  text-transform: uppercase;
+}
+
+.preferences-hint {
+  margin: 0;
+
+  color: var(--color-text-tertiary);
+
+  font-size: 12px;
+
+  line-height: 1.5;
+}
+
+.preferences-field {
+  display: grid;
+
+  gap: 0.4rem;
+}
+
+.preferences-field > span {
+  color: var(--color-text-tertiary);
+
+  font-size: 12px;
+}
+
+.preferences-key {
+  width: fit-content;
+
+  min-width: 120px;
+
+  padding: 8px 14px;
+
+  background: var(--color-surface-strong);
+
+  color: var(--color-text-secondary);
+
+  border: 1px solid var(--color-border-default);
+
+  border-radius: 6px;
+
+  cursor: pointer;
+
+  font-family: "IBM Plex Mono", monospace;
+
+  font-size: 13px;
+
+  text-transform: uppercase;
+
+  transition: background 150ms ease;
+}
+
+.preferences-key:hover {
+  background: var(--color-surface-base);
+}
+
+.preferences-key.is-listening {
+  background: #5865f2;
+
+  color: white;
+
+  border-color: #5865f2;
+}
+
+.preferences-saved {
+  margin: 0;
+
+  color: var(--color-state-success);
+
+  font-size: 12px;
+}

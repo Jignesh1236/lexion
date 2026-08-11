@@ -123,15 +123,19 @@ export class LexionPeer {
     return true;
   }
 
-  toggleMic() {
+  setMic(on) {
     this.ensureMic()
       .then(() => {
         if (!this.micTrack || this.disposed) return;
-        this.micOn = !this.micOn;
+        this.micOn = !!on;
         this.micTrack.enabled = this.micOn;
         this.emit({ talking: this.micOn });
       })
       .catch(() => this.emit({ phase: 'error', message: 'Microphone permission denied' }));
+  }
+
+  toggleMic() {
+    this.setMic(!this.micOn);
   }
 
   monitorRemoteAudio(stream) {
