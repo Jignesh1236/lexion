@@ -181,14 +181,32 @@ function createWindow() {
 app.whenReady().then(() => {
   buildMenu();
   createWindow();
-  createBallOverlay();
-  createTray();
-  applyHotkeys(ensureDefaultConnectSettings());
-  onOverlayVisibilityChange(refreshHotkeys);
+  try {
+    createBallOverlay();
+  } catch (err) {
+    console.error('[main] createBallOverlay failed:', err);
+  }
+  try {
+    createTray();
+  } catch (err) {
+    console.error('[main] createTray failed:', err);
+  }
+  try {
+    applyHotkeys(ensureDefaultConnectSettings());
+  } catch (err) {
+    console.error('[main] applyHotkeys failed:', err);
+  }
+  try {
+    onOverlayVisibilityChange(refreshHotkeys);
+  } catch (err) {
+    console.error('[main] onOverlayVisibilityChange failed:', err);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}).catch((err) => {
+  console.error('[main] whenReady failed:', err);
 });
 
 app.on('before-quit', () => {

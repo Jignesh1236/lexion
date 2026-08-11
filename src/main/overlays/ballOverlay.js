@@ -106,6 +106,7 @@ export function createBallOverlay() {
     y,
     width,
     height,
+    show: false,
     transparent: true,
     frame: false,
     resizable: false,
@@ -126,13 +127,20 @@ export function createBallOverlay() {
     }
   });
 
-  overlayWin.setAlwaysOnTop(true, 'screen-saver');
-  overlayWin.setIgnoreMouseEvents(true, { forward: true });
+  overlayWin.once('ready-to-show', () => {
+    try { overlayWin.setAlwaysOnTop(true, 'screen-saver'); } catch {}
+    try { overlayWin.showInactive(); } catch { try { overlayWin.show(); } catch {} }
+    try { overlayWin.setIgnoreMouseEvents(true, { forward: true }); } catch {}
+  });
+
+  overlayWin.webContents.on('did-fail-load', (_event, code, desc) => {
+    console.error('[ballOverlay] failed to load overlay:', code, desc);
+  });
 
   if (process.env['ELECTRON_RENDERER_URL']) {
-    overlayWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/overlay.html`);
+    overlayWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/overlay.html`).catch((err) => console.error('[ballOverlay] loadURL error:', err));
   } else {
-    overlayWin.loadFile(join(__dirname, '../renderer/overlay.html'));
+    overlayWin.loadFile(join(__dirname, '../renderer/overlay.html')).catch((err) => console.error('[ballOverlay] loadFile error:', err));
   }
 
   registerOverlayIpc();
