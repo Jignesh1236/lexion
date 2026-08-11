@@ -47,7 +47,21 @@ export default function Settings({ user }) {
 
   useEffect(() => {
     const off = window.lexion?.onStatus?.((next) => setStatus(next));
-    return off;
+    (async () => {
+      try {
+        const initial = await window.lexion?.getStatus?.();
+        if (initial) setStatus(initial);
+      } catch (err) {
+        console.warn('getStatus fetch failed:', err);
+      }
+    })();
+    const fallback = setTimeout(() => {
+      setStatus((prev) => prev || { phase: 'loading', connected: false, message: 'Overlay booting…' });
+    }, 1500);
+    return () => {
+      off?.();
+      clearTimeout(fallback);
+    };
   }, []);
 
   const save = async () => {

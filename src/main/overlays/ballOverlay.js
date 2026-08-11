@@ -137,6 +137,41 @@ export function createBallOverlay() {
     console.error('[ballOverlay] failed to load overlay:', code, desc);
   });
 
+  overlayWin.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[ballOverlay] render-process-gone:', details);
+    try {
+      setTimeout(() => {
+        if (!overlayWin || overlayWin.isDestroyed()) return;
+        console.log('[ballOverlay] reloading crashed overlay…');
+        overlayWin.reload();
+      }, 1000);
+    } catch (err) {
+      console.error('[ballOverlay] reload on crash failed:', err);
+    }
+  });
+
+  overlayWin.webContents.on('unresponsive', () => {
+    console.warn('[ballOverlay] overlay unresponsive');
+  });
+
+  overlayWin.webContents.on('crashed', (_event, killed) => {
+    console.error('[ballOverlay] overlay crashed, killed=', killed);
+    try {
+      setTimeout(() => {
+        if (!overlayWin || overlayWin.isDestroyed()) return;
+        console.log('[ballOverlay] reloading crashed overlay…');
+        overlayWin.reload();
+      }, 1000);
+    } catch (err) {
+      console.error('[ballOverlay] reload on crash failed:', err);
+    }
+  });
+
+  overlayWin.on('closed', () => {
+    stopPolling();
+    overlayWin = null;
+  });
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     overlayWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/overlay.html`).catch((err) => console.error('[ballOverlay] loadURL error:', err));
   } else {

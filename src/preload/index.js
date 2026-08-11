@@ -29,8 +29,10 @@ contextBridge.exposeInMainWorld('overlay', {
 contextBridge.exposeInMainWorld('lexion', {
   toggleOverlay: () => ipcRenderer.send('overlay:toggle-visible'),
   updateHotkeys: (partial) => ipcRenderer.send('app:save-hotkeys', partial),
+  getStatus: () => ipcRenderer.invoke('lexion:get-status'),
   onStatus: (callback) => {
-    ipcRenderer.on('lexion:status', (_event, status) => callback(status));
-    return () => ipcRenderer.removeAllListeners('lexion:status');
+    const handler = (_event, status) => callback(status);
+    ipcRenderer.on('lexion:status', handler);
+    return () => ipcRenderer.off('lexion:status', handler);
   }
 });

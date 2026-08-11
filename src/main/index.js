@@ -9,6 +9,7 @@ const DATA_DIR = join(app.getPath('userData'), '.appdata');
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
+let latestOverlayStatus = null;
 
 function ensureDataDir() {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
@@ -90,8 +91,13 @@ ipcMain.on('app:open-main', () => {
 });
 
 ipcMain.on('lexion:status', (_event, status) => {
-  mainWindow?.webContents.send('lexion:status', status);
+  latestOverlayStatus = status || null;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('lexion:status', latestOverlayStatus);
+  }
 });
+
+ipcMain.handle('lexion:get-status', () => latestOverlayStatus);
 
 ipcMain.on('overlay:toggle-visible', () => {
   if (!getBallOverlay()) return;
@@ -121,6 +127,26 @@ function buildMenu() {
             if (!mainWindow) return;
             if (item.checked) mainWindow.webContents.openDevTools();
             else mainWindow.webContents.closeDevTools();
+          }
+        },
+        {
+          label: 'Overlay Dev Tools',
+          type: 'checkbox',
+          checked: false,
+          click: (item) => {
+            const overlay = getBallOverlay();
+            if (!overlay) return;
+            if (item.checked) overlay.webContents.openDevTools({ mode: 'detach' });
+            else overlay.webContents.closeDevTools();
+          }
+        },
+        {
+          label: 'Reload Overlay',
+          click: () => {
+            const overlay = getBallOverlay();
+            if (overlay && !overlay.isDestroyed()) {
+              try { overlay.reload(); } catch (err) { console.error('[main] overlay reload failed:', err); }
+            }
           }
         },
         { label: 'Delete .appdata', click: () => { deleteAppData(); mainWindow?.webContents.reload(); } },

@@ -73,10 +73,58 @@ function Overlay() {
   const pushStatus = useCallback((next) => {
     setStatus((prev) => {
       const merged = { ...prev, ...next };
-      window.overlay?.sendStatus?.(merged);
+      try { window.overlay?.sendStatus?.(merged); } catch (err) { console.warn('pushStatus send failed:', err); }
       return merged;
     });
   }, []);
+
+  useEffect(() => {
+    try {
+      window.overlay?.sendStatus?.({
+        phase: 'booting',
+        connected: false,
+        talking: false,
+        partnerSpeaking: false,
+        chatReady: false,
+        message: 'Overlay booting…'
+      });
+    } catch (err) {
+      console.warn('initial sendStatus failed:', err);
+    }
+    const bootTimer = setTimeout(() => {
+      pushStatus({ phase: 'starting', message: 'Waiting for username…' });
+    }, 50);
+    return () => clearTimeout(bootTimer);
+  }, [pushStatus]);
+
+  useEffect(() => {
+    const handleError = (event) => {
+      const err = event.error || event.message || 'unknown';
+      console.error('[overlay] window error:', err);
+      try {
+        pushStatus({
+          phase: 'error',
+          message: err?.message ? err.message : String(err)
+        });
+      } catch {}
+    };
+    const handleRejection = (event) => {
+      const reason = event.reason || 'unknown rejection';
+      console.error('[overlay] unhandledrejection:', reason);
+      try {
+        pushStatus({
+          phase: 'error',
+          message: reason?.message ? reason.message : String(reason)
+        });
+      } catch {}
+    };
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, [pushStatus]);
 
   const addIncoming = useCallback((text) => {
     setMessages((list) => [...list.slice(-19), { text, partner: true }]);
@@ -153,25 +201,49 @@ function Overlay() {
       if (cancelled) return;
       setSettings(saved || null);
       if (saved && saved.username) {
-        startPeer(saved);
+        try {
+          startPeer(saved);
+        } catch (err) {
+          console.error('[overlay] startPeer on load failed:', err);
+          pushStatus({ phase: 'error', message: err?.message ? err.message : String(err) });
+        }
+      } else {
+        pushStatus({ phase: 'no-username', connected: false, chatReady: false, message: 'Set your username in Lexion settings' });
+      }
+    }).catch((err) => {
+      console.error('[overlay] loadData connect.json failed:', err);
+      pushStatus({ phase: 'error', message: 'Failed to load connect settings' });
+    });
+
+    const offApply = window.overlay.onApplySettings((next) => {
+      setSettings(next);
+      try {
+        peerRef.current?.dispose();
+      } catch (err) {
+        console.warn('[overlay] peer dispose error:', err);
+      }
+      peerRef.current = null;
+      setMessages([]);
+      if (next && next.username) {
+        try {
+          startPeer(next);
+        } catch (err) {
+          console.error('[overlay] startPeer on apply failed:', err);
+          pushStatus({ phase: 'error', message: err?.message ? err.message : String(err) });
+        }
       } else {
         pushStatus({ phase: 'no-username', connected: false, chatReady: false, message: 'Set your username in Lexion settings' });
       }
     });
 
-    const offApply = window.overlay.onApplySettings((next) => {
-      setSettings(next);
-      peerRef.current?.dispose();
-      peerRef.current = null;
-      setMessages([]);
-      if (next && next.username) startPeer(next);
-      else pushStatus({ phase: 'no-username', connected: false, chatReady: false, message: 'Set your username in Lexion settings' });
-    });
-
     return () => {
       cancelled = true;
       offApply?.();
-      peerRef.current?.dispose();
+      try {
+        peerRef.current?.dispose();
+      } catch (err) {
+        console.warn('[overlay] cleanup dispose error:', err);
+      }
     };
   }, [startPeer, pushStatus]);
 
