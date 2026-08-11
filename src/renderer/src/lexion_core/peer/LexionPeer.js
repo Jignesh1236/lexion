@@ -125,19 +125,16 @@ export class LexionPeer {
           message: 'Could not establish the voice call. Check the partner username, or if NAT blocks it try the same network.'
         });
       }
-    }, 20000);
+    }, 25000);
 
     try {
       const stream = await this.ensureMic();
       const startConnections = () => {
         if (this.disposed) return;
-        const iAmInitiator = this.myPeerId < this.partnerPeerId;
-        if (iAmInitiator) {
-          const data = this.peer.connect(this.partnerPeerId, { reliable: true });
-          this.setupData(data);
-          const call = this.peer.call(this.partnerPeerId, stream);
-          this.setupCall(call);
-        }
+        const data = this.peer.connect(this.partnerPeerId, { reliable: true, serialization: 'json' });
+        this.setupData(data);
+        const call = this.peer.call(this.partnerPeerId, stream);
+        this.setupCall(call);
       };
       if (this.peer.open) startConnections();
       else this.peer.once('open', startConnections);
@@ -169,7 +166,11 @@ export class LexionPeer {
         if (!this.state.connected) {
           this.emit({ connected: true, phase: 'connected', message: 'Connected' });
         }
-      } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+      } else if (state === 'checking') {
+      } else if (state === 'failed') {
+        this.clearConnectTimer();
+        this.emit({ phase: 'error', message: 'ICE failed — try same Wi-Fi or disable VPN' });
+      } else if (state === 'disconnected' || state === 'closed') {
         if (this.state.connected) {
           this.cleanupAudio();
           this.emit({ connected: false, partnerSpeaking: false, phase: 'disconnected', message: 'Disconnected', talking: false });
@@ -187,7 +188,7 @@ export class LexionPeer {
     call.on('error', (error) => {
       console.error('[LexionPeer] call error:', error);
       this.clearConnectTimer();
-      this.emit({ phase: 'error', message: 'Voice connection error' });
+      this.emit({ phase: 'error', message: 'Voice connection error: ' + (error?.type || error?.message || 'unknown') });
     });
   }
 
@@ -237,15 +238,23 @@ export class LexionPeer {
     }
     const partnerId = connection.peer;
     if (this.partnerPeerId && this.partnerPeerId !== partnerId) {
+      console.warn('[LexionPeer] rejecting data conn from unknown peer:', partnerId);
       try { connection.close(); } catch {}
       return;
     }
-    this.partnerPeerId = partnerId;
-    const iAmInitiator = this.myPeerId < partnerId;
-    if (iAmInitiator) {
-      try { connection.close(); } catch {}
-      return;
+    const knownPartner = this.partnerPeerId === partnerId;
+    const hasDataConn = this.dataConnection && this.dataConnection !== connection;
+    const existingPartner = this.dataConnection?.peer;
+    if (knownPartner && hasDataConn && existingPartner === partnerId) {
+      const iKeepIncoming = partnerId < this.myPeerId;
+      if (!iKeepIncoming) {
+        console.warn('[LexionPeer] dedup: closing incoming data conn, keeping existing');
+        try { connection.close(); } catch {}
+        return;
+      }
+      console.warn('[LexionPeer] dedup: replacing outgoing data conn with incoming');
     }
+    if (!this.partnerPeerId) this.partnerPeerId = partnerId;
     this.setupData(connection);
   }
 
@@ -257,8 +266,18 @@ export class LexionPeer {
     }
     this.dataConnection = connection;
 
+    let didOpen = false;
+    const openTimeout = setTimeout(() => {
+      if (!didOpen && !this.disposed) {
+        console.warn('[LexionPeer] data conn open timeout, will retry via incoming');
+      }
+    }, 10000);
+
     connection.on('open', () => {
+      didOpen = true;
+      clearTimeout(openTimeout);
       if (this.disposed) return;
+      this.clearConnectTimer();
       this.emit({ chatReady: true });
     });
     connection.on('data', (data) => {
@@ -266,12 +285,14 @@ export class LexionPeer {
       if (data && data.type === 'message') this.cbs.onMessage?.(data.text);
     });
     connection.on('close', () => {
+      clearTimeout(openTimeout);
       if (this.dataConnection === connection) {
         this.dataConnection = null;
         this.emit({ chatReady: false });
       }
     });
     connection.on('error', (err) => {
+      clearTimeout(openTimeout);
       console.error('[LexionPeer] data connection error:', err);
     });
   }
@@ -283,15 +304,23 @@ export class LexionPeer {
     }
     const partnerId = call.peer;
     if (this.partnerPeerId && this.partnerPeerId !== partnerId) {
+      console.warn('[LexionPeer] rejecting call from unknown peer:', partnerId);
       try { call.close(); } catch {}
       return;
     }
-    this.partnerPeerId = partnerId;
-    const iAmInitiator = this.myPeerId < partnerId;
-    if (iAmInitiator) {
-      try { call.close(); } catch {}
-      return;
+    const knownPartner = this.partnerPeerId === partnerId;
+    const hasCall = this.currentCall && this.currentCall !== call;
+    const existingPartner = this.currentCall?.peer;
+    if (knownPartner && hasCall && existingPartner === partnerId) {
+      const iKeepIncoming = partnerId < this.myPeerId;
+      if (!iKeepIncoming) {
+        console.warn('[LexionPeer] dedup: closing incoming call, keeping existing');
+        try { call.close(); } catch {}
+        return;
+      }
+      console.warn('[LexionPeer] dedup: replacing outgoing call with incoming');
     }
+    if (!this.partnerPeerId) this.partnerPeerId = partnerId;
     this.ensureMic()
       .then((stream) => {
         if (!this.disposed) {
