@@ -13,6 +13,8 @@ export class LexionPeer {
     this.analyser = null;
     this.audioData = null;
     this.speakTimer = null;
+    this.connectTimer = null;
+    this.reconnectTimer = null;
     this.disposed = false;
     this.state = {
       phase: 'starting',
@@ -23,10 +25,30 @@ export class LexionPeer {
       message: ''
     };
 
-    this.peer = new Peer(username);
+    const config = {
+      iceServers: [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
+      ]
+    };
 
-    this.peer.on('open', (id) => this.emit({ phase: 'ready', message: `Ready: ${id}` }));
-    this.peer.on('disconnected', () => this.emit({ phase: 'disconnected', connected: false }));
+    this.peer = new Peer(username, { config });
+
+    this.peer.on('open', (id) => {
+      this.isOpen = true;
+      this.emit({ phase: 'ready', message: `Ready: ${id}` });
+    });
+    this.peer.on('disconnected', () => {
+      this.emit({ phase: 'disconnected', connected: false });
+      if (!this.disposed) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => {
+          if (this.disposed) return;
+          try {
+            this.peer.reconnect();
+          } catch {}
+        }, 500);
+      }
+    });
     this.peer.on('error', (error) => this.emit({ phase: 'error', message: this.mapError(error) }));
     this.peer.on('call', (call) => this.handleIncomingCall(call));
     this.peer.on('connection', (connection) => this.setupData(connection));
@@ -50,13 +72,28 @@ export class LexionPeer {
     if (!partnerId) return;
     this.emit({ phase: 'connecting', connected: false, message: 'Connecting...' });
 
-    const data = this.peer.connect(partnerId);
-    this.setupData(data);
+    clearTimeout(this.connectTimer);
+    this.connectTimer = setTimeout(() => {
+      if (this.disposed) return;
+      if (this.state.phase === 'connecting' && !this.state.connected) {
+        this.emit({
+          phase: 'error',
+          message: 'Could not establish the voice call. Check the partner username, or if NAT blocks it try the same network.'
+        });
+      }
+    }, 15000);
 
     try {
       const stream = await this.ensureMic();
-      const call = this.peer.call(partnerId, stream);
-      this.setupCall(call);
+      const startConnections = () => {
+        if (this.disposed) return;
+        const data = this.peer.connect(partnerId);
+        this.setupData(data);
+        const call = this.peer.call(partnerId, stream);
+        this.setupCall(call);
+      };
+      if (this.isOpen) startConnections();
+      else this.peer.once('open', startConnections);
     } catch (error) {
       this.emit({ phase: 'error', message: 'Microphone permission denied' });
     }
@@ -66,6 +103,7 @@ export class LexionPeer {
     this.currentCall = call;
 
     call.on('stream', (remoteStream) => {
+      this.clearConnectTimer();
       let audio = document.getElementById('lexion-remote-audio');
       if (!audio) {
         audio = document.createElement('audio');
@@ -80,14 +118,30 @@ export class LexionPeer {
       this.emit({ connected: true, phase: 'connected', message: 'Connected' });
     });
 
+    call.on('iceStateChanged', (state) => {
+      if (state === 'connected' || state === 'completed') {
+        this.clearConnectTimer();
+        this.emit({ connected: true, phase: 'connected', message: 'Connected' });
+      }
+    });
+
     call.on('close', () => {
+      this.clearConnectTimer();
       this.cleanupAudio();
       this.emit({ connected: false, partnerSpeaking: false, phase: 'disconnected', message: 'Disconnected', talking: false });
     });
 
     call.on('error', (error) => {
+      this.clearConnectTimer();
       this.emit({ phase: 'error', message: 'Voice connection error' });
     });
+  }
+
+  clearConnectTimer() {
+    if (this.connectTimer) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
   }
 
   setupData(connection) {
@@ -185,7 +239,9 @@ export class LexionPeer {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.clearConnectTimer();
     if (this.speakTimer) clearTimeout(this.speakTimer);
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.cleanupAudio();
     if (this.micTrack) this.micTrack.enabled = false;
     this.currentCall?.close();
@@ -193,6 +249,7 @@ export class LexionPeer {
     this.localStream?.getTracks().forEach((track) => track.stop());
     this.localStream = null;
     this.micTrack = null;
+    this.isOpen = false;
     this.peer?.destroy();
     this.peer = null;
   }
