@@ -4,6 +4,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { createBallOverlay, getBallOverlay, showBallOverlay, hideBallOverlay, toggleBallOverlay, onOverlayVisibilityChange } from './overlays/ballOverlay.js';
 import { applyHotkeys, refreshHotkeys } from './hotkeys.js';
 
+const profileArg = process.argv.find((arg) => arg.startsWith('--profile='));
+if (profileArg) {
+  app.setPath('userData', join(app.getPath('appData'), 'lexion-' + profileArg.slice('--profile='.length)));
+}
+
 const DATA_DIR = join(app.getPath('userData'), '.appdata');
 
 let mainWindow = null;

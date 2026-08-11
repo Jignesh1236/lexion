@@ -96,6 +96,10 @@ function registerOverlayIpc() {
     interactive = false;
     overlayWin.setIgnoreMouseEvents(true, { forward: true });
   });
+
+  ipcMain.on('overlay:apply-audio-devices', (_event, inputId, outputId) => {
+    overlayWin?.webContents.send('overlay:apply-audio-devices', inputId, outputId);
+  });
 }
 
 export function createBallOverlay() {

@@ -190,8 +190,10 @@ function Overlay() {
   );
 
   useEffect(() => {
-    if (!window.overlay) window.overlay = {};
-    window.overlay.applyAudioDevices = applyAudioDevices;
+    const offApplyAudio = window.overlay.onApplyAudioDevices((inputId, outputId) => {
+      applyAudioDevices(inputId, outputId);
+    });
+    return offApplyAudio;
   }, [applyAudioDevices]);
 
   useEffect(() => {
