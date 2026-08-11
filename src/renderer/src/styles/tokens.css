@@ -1,0 +1,19 @@
+:root {
+  --color-text-primary: #b8b2b2;
+  --color-text-secondary: #f2eded;
+  --color-text-tertiary: #7f7a7a;
+  --color-text-inverse: #131010;
+  --color-surface-base: #000000;
+  --color-surface-strong: #1b1818;
+  --color-border-strong: rgb(61, 56, 56);
+  --color-border-default: rgb(61, 56, 56);
+  --color-border-subtle: rgba(184, 178, 178, 0.16);
+  --color-interactive-primary: #f2eded;
+  --color-interactive-primary-hover: #ffffff;
+  --color-interactive-inverse: #131010;
+  --color-focus-ring: #f2eded;
+  --color-state-error: #ff6b6b;
+  --color-state-warning: #e5c07b;
+  --color-state-success: #98c379;
+  --color-state-info: #61afef;
+}

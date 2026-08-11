@@ -1,0 +1,120 @@
+.profile {
+  width: 100vw;
+  min-height: 100vh;
+
+  display: grid;
+  place-items: center;
+
+  background: var(--color-surface-base);
+
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.profile__back {
+  position: fixed;
+
+  top: 1rem;
+  left: 1.25rem;
+
+  cursor: pointer;
+
+  color: var(--color-text-tertiary);
+
+  border: none;
+  background: none;
+
+  font-family: inherit;
+  font-size: 14px;
+
+  transition: color 200ms ease;
+}
+
+.profile__back:hover {
+  color: var(--color-text-primary);
+}
+
+.profile__card {
+  width: 28vw;
+
+  display: grid;
+  gap: 1.5rem;
+
+  padding: 2rem;
+
+  box-sizing: border-box;
+
+  background: var(--color-surface-strong);
+
+  border: 1px solid var(--color-border-default);
+
+  border-radius: 0.5vw;
+}
+
+.profile__card h1 {
+  margin: 0;
+
+  font-size: 1.4vw;
+
+  font-weight: 500;
+
+  color: var(--color-text-primary);
+}
+
+.profile__field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.profile__field span {
+  color: var(--color-text-tertiary);
+
+  font-size: 13px;
+}
+
+.profile__field input {
+  padding: 0.55rem 0.75rem;
+
+  box-sizing: border-box;
+
+  color: var(--color-text-primary);
+
+  background: var(--color-surface-base);
+
+  border: 1px solid var(--color-border-default);
+
+  border-radius: 4px;
+
+  font-family: inherit;
+  font-size: 14px;
+
+  outline: none;
+
+  transition: border-color 200ms ease;
+}
+
+.profile__field input:focus {
+  border-color: var(--color-focus-ring);
+}
+
+.profile__save {
+  padding: 0.6rem;
+
+  cursor: pointer;
+
+  color: var(--color-interactive-inverse);
+
+  background: var(--color-interactive-primary);
+
+  border: none;
+
+  border-radius: 4px;
+
+  font-family: inherit;
+  font-size: 14px;
+
+  transition: background 200ms ease;
+}
+
+.profile__save:hover {
+  background: var(--color-interactive-primary-hover);
+}
