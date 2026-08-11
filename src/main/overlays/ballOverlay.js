@@ -132,9 +132,17 @@ export function createBallOverlay() {
   });
 
   overlayWin.once('ready-to-show', () => {
-    try { overlayWin.setAlwaysOnTop(true, 'screen-saver'); } catch {}
-    try { overlayWin.showInactive(); } catch { try { overlayWin.show(); } catch {} }
-    try { overlayWin.setIgnoreMouseEvents(true, { forward: true }); } catch {}
+    try {
+      overlayWin.setAlwaysOnTop(true, 'screen-saver');
+    } catch {
+      try { overlayWin.setAlwaysOnTop(true); } catch (err) { console.warn('[ballOverlay] setAlwaysOnTop failed:', err); }
+    }
+    try { overlayWin.showInactive(); } catch {
+      try { overlayWin.show(); } catch (err) { console.warn('[ballOverlay] overlay show failed:', err); }
+    }
+    try { overlayWin.setIgnoreMouseEvents(true, { forward: true }); } catch {
+      try { overlayWin.setIgnoreMouseEvents(true); } catch (err) { console.warn('[ballOverlay] setIgnoreMouseEvents failed:', err); }
+    }
   });
 
   overlayWin.webContents.on('did-fail-load', (_event, code, desc) => {

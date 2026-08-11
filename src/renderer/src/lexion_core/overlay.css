@@ -52,3 +52,49 @@
 .lexion-setup button:hover {
   background: #4752c4;
 }
+
+.lexion-preview {
+  position: fixed;
+
+  max-width: 260px;
+
+  padding: 8px 12px;
+
+  border-radius: 12px;
+
+  background: rgba(20, 20, 20, 0.95);
+
+  border: 1px solid rgba(255, 255, 255, 0.1);
+
+  color: white;
+
+  font-size: 12px;
+
+  line-height: 1.4;
+
+  word-break: break-word;
+
+  box-shadow:
+    0 8px 25px
+    rgba(0, 0, 0, 0.35);
+
+  pointer-events: none;
+
+  z-index: 9999;
+
+  animation: lexionPreviewIn 0.18s ease;
+}
+
+@keyframes lexionPreviewIn {
+  from {
+    opacity: 0;
+
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: translateY(0);
+  }
+}

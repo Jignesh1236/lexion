@@ -15,19 +15,22 @@ contextBridge.exposeInMainWorld('overlay', {
   setDrag: (on) => ipcRenderer.send('overlay:set-drag', Boolean(on)),
   applyAudioDevices: (inputId, outputId) => ipcRenderer.send('overlay:apply-audio-devices', inputId, outputId),
   onApplyAudioDevices: (callback) => {
-    ipcRenderer.on('overlay:apply-audio-devices', (_event, inputId, outputId) => callback(inputId, outputId));
-    return () => ipcRenderer.removeAllListeners('overlay:apply-audio-devices');
+    const handler = (_event, inputId, outputId) => callback(inputId, outputId);
+    ipcRenderer.on('overlay:apply-audio-devices', handler);
+    return () => ipcRenderer.off('overlay:apply-audio-devices', handler);
   },
   forceIgnore: () => ipcRenderer.send('overlay:force-ignore'),
   openMain: () => ipcRenderer.send('app:open-main'),
   sendStatus: (status) => ipcRenderer.send('lexion:status', status),
   onPttToggle: (callback) => {
-    ipcRenderer.on('lexion:ptt-toggle', () => callback());
-    return () => ipcRenderer.removeAllListeners('lexion:ptt-toggle');
+    const handler = () => callback();
+    ipcRenderer.on('lexion:ptt-toggle', handler);
+    return () => ipcRenderer.off('lexion:ptt-toggle', handler);
   },
   onApplySettings: (callback) => {
-    ipcRenderer.on('lexion:apply-settings', (_event, settings) => callback(settings));
-    return () => ipcRenderer.removeAllListeners('lexion:apply-settings');
+    const handler = (_event, settings) => callback(settings);
+    ipcRenderer.on('lexion:apply-settings', handler);
+    return () => ipcRenderer.off('lexion:apply-settings', handler);
   }
 });
 

@@ -1,15 +1,5 @@
 import Peer from 'peerjs';
-
-function sanitizePeerId(value) {
-  if (!value) return null;
-  const clean = String(value)
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 48);
-  return clean || null;
-}
+import { sanitizePeerId } from '../../utils/sanitizePeerId.js';
 
 export class LexionPeer {
   constructor(username, callbacks = {}, audioOpts = {}) {
@@ -43,10 +33,7 @@ export class LexionPeer {
     const config = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' }
+        { urls: 'stun:stun1.l.google.com:19302' }
       ]
     };
 
@@ -55,10 +42,7 @@ export class LexionPeer {
       return;
     }
 
-    this.peer = new Peer(this.myPeerId, {
-      debug: 3,
-      config
-    });
+    this.peer = new Peer(this.myPeerId, { config });
 
     this.peer.on('open', (id) => {
       this.myPeerId = id;
@@ -72,7 +56,9 @@ export class LexionPeer {
           if (this.disposed) return;
           try {
             this.peer.reconnect();
-          } catch {}
+          } catch (err) {
+            console.warn('[LexionPeer] reconnect failed:', err);
+          }
         }, 500);
       }
     });
@@ -197,7 +183,6 @@ export class LexionPeer {
         if (!this.state.connected) {
           this.emit({ connected: true, phase: 'connected', message: 'Connected' });
         }
-      } else if (state === 'checking') {
       } else if (state === 'failed') {
         this.clearConnectTimer();
         this.emit({ phase: 'error', message: 'ICE failed — try same Wi-Fi or disable VPN' });
@@ -448,7 +433,9 @@ export class LexionPeer {
           if (!this.disposed) this.emit({ partnerSpeaking: false });
         }, 180);
       }
-    } catch {}
+    } catch (err) {
+      console.warn('[LexionPeer] detectSpeaking sample error:', err);
+    }
     if (!this.disposed) requestAnimationFrame(() => this.detectSpeaking());
   }
 
@@ -460,14 +447,14 @@ export class LexionPeer {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.cleanupAudio();
     if (this.micTrack) this.micTrack.enabled = false;
-    try { this.currentCall?.close(); } catch {}
-    try { this.dataConnection?.close(); } catch {}
+    try { this.currentCall?.close(); } catch (err) { console.warn('[LexionPeer] dispose currentCall:', err); }
+    try { this.dataConnection?.close(); } catch (err) { console.warn('[LexionPeer] dispose dataConn:', err); }
     this.localStream?.getTracks().forEach((track) => track.stop());
     this.localStream = null;
     this.micTrack = null;
     this.currentCall = null;
     this.dataConnection = null;
-    try { this.peer?.destroy(); } catch {}
+    try { this.peer?.destroy(); } catch (err) { console.warn('[LexionPeer] dispose peer destroy:', err); }
     this.peer = null;
   }
 

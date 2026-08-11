@@ -39,6 +39,8 @@ function Overlay() {
   const [messages, setMessages] = useState([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [ballPos, setBallPos] = useState(null);
+  const [unread, setUnread] = useState(0);
+  const [preview, setPreview] = useState(null);
 
   const peerRef = useRef(null);
   const ballRectRef = useRef(null);
@@ -46,6 +48,7 @@ function Overlay() {
   const setupRef = useRef(null);
   const draggingRef = useRef(false);
   const chatOpenRef = useRef(false);
+  const previewTimerRef = useRef(null);
   chatOpenRef.current = chatOpen;
 
   const reportAreas = useCallback(() => {
@@ -106,7 +109,9 @@ function Overlay() {
           phase: 'error',
           message: err?.message ? err.message : String(err)
         });
-      } catch {}
+      } catch (inner) {
+        console.warn('[overlay] pushStatus inside error handler failed:', inner);
+      }
     };
     const handleRejection = (event) => {
       const reason = event.reason || 'unknown rejection';
@@ -116,7 +121,9 @@ function Overlay() {
           phase: 'error',
           message: reason?.message ? reason.message : String(reason)
         });
-      } catch {}
+      } catch (inner) {
+        console.warn('[overlay] pushStatus inside rejection handler failed:', inner);
+      }
     };
     window.addEventListener('error', handleError);
     window.addEventListener('unhandledrejection', handleRejection);
@@ -127,7 +134,13 @@ function Overlay() {
   }, [pushStatus]);
 
   const addIncoming = useCallback((text) => {
-    setMessages((list) => [...list.slice(-19), { text, partner: true }]);
+    setMessages((list) => [...list.slice(-19), { text, partner: true, time: Date.now() }]);
+    if (!chatOpenRef.current) {
+      setUnread((n) => n + 1);
+      setPreview({ text, time: Date.now() });
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = setTimeout(() => setPreview(null), 4000);
+    }
   }, []);
 
   const startPeer = useCallback(
@@ -226,6 +239,8 @@ function Overlay() {
       }
       peerRef.current = null;
       setMessages([]);
+      setUnread(0);
+      setPreview(null);
       if (next && next.username) {
         try {
           startPeer(next);
@@ -254,6 +269,10 @@ function Overlay() {
     return offPtt;
   }, []);
 
+  useEffect(() => () => {
+    clearTimeout(previewTimerRef.current);
+  }, []);
+
   useEffect(() => {
     const onBlur = () => {
       setChatOpen(false);
@@ -265,7 +284,14 @@ function Overlay() {
 
   const onBallClick = () => {
     reportAreas();
-    setChatOpen((open) => !open);
+    setChatOpen((open) => {
+      const next = !open;
+      if (next) {
+        setUnread(0);
+        setPreview(null);
+      }
+      return next;
+    });
     setTimeout(reportAreas, 0);
     setTimeout(reportAreas, 50);
   };
@@ -296,7 +322,7 @@ function Overlay() {
 
   const onSendMessage = (text) => {
     const ok = peerRef.current?.sendMessage(text);
-    if (ok) setMessages((list) => [...list.slice(-19), { text, partner: false }]);
+    if (ok) setMessages((list) => [...list.slice(-19), { text, partner: false, time: Date.now() }]);
     return !!ok;
   };
 
@@ -318,6 +344,7 @@ function Overlay() {
         connected={status.connected}
         talking={status.talking}
         partnerSpeaking={status.partnerSpeaking}
+        unread={unread}
         onRef={(el) => {
           ballRectRef.current = el;
         }}
@@ -328,6 +355,19 @@ function Overlay() {
         onTalkStart={onBallTalkStart}
         onTalkStop={onBallTalkStop}
       />
+
+      {preview && !chatOpen && ballPos && (
+        <div
+          key={preview.time}
+          className="lexion-preview"
+          style={{
+            left: Math.min(ballPos.x + BALL_SIZE + 10, Math.max(10, window.innerWidth - 280)),
+            top: Math.min(ballPos.y, Math.max(0, window.innerHeight - 60))
+          }}
+        >
+          {preview.text}
+        </div>
+      )}
 
       <Chat
         ref={chatRef}

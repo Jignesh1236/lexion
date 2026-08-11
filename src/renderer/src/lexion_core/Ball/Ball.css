@@ -114,3 +114,80 @@
 #lexion-ball.is-stashed {
   opacity: 0.85;
 }
+
+#lexion-ball.has-unread img {
+  animation: lexionUnreadPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes lexionUnreadPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px
+      rgba(240, 71, 71, 0.45),
+
+      0 0 14px
+      rgba(240, 71, 71, 0.6);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 3px
+      rgba(240, 71, 71, 0.85),
+
+      0 0 28px
+      rgba(240, 71, 71, 0.95);
+  }
+}
+
+.lexion-ball-badge {
+  position: absolute;
+
+  top: -4px;
+
+  right: -4px;
+
+  min-width: 18px;
+
+  height: 18px;
+
+  padding: 0 5px;
+
+  border-radius: 9px;
+
+  background: #f04747;
+
+  color: white;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  line-height: 18px;
+
+  text-align: center;
+
+  box-shadow:
+    0 2px 8px
+    rgba(0, 0, 0, 0.45);
+
+  z-index: 10002;
+
+  pointer-events: none;
+
+  animation: lexionBadgeIn 0.2s ease;
+}
+
+@keyframes lexionBadgeIn {
+  from {
+    transform: scale(0.5);
+
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+
+    opacity: 1;
+  }
+}

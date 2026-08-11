@@ -104,7 +104,7 @@ function stashPosition(position, size) {
   return stashed;
 }
 
-export default function Ball({ size, connected, talking, partnerSpeaking, onRef, onPositionChange, onClick, onToggleVoice, onDragChange, onTalkStart, onTalkStop }) {
+export default function Ball({ size, connected, talking, partnerSpeaking, unread, onRef, onPositionChange, onClick, onToggleVoice, onDragChange, onTalkStart, onTalkStop }) {
   const initial = loadPosition(size);
   const [position, setPosition] = useState({
     x: initial.x,
@@ -390,6 +390,7 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
     connected ? 'is-connected' : '',
     talking ? 'is-talking' : '',
     partnerSpeaking ? 'is-partner-speaking' : '',
+    unread > 0 ? 'has-unread' : '',
     moving ? 'is-moving' : '',
     stashed ? 'is-stashed' : '',
     hovered ? 'is-hovered' : ''
@@ -416,6 +417,7 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
       onMouseLeave={() => setHovered(false)}
       onContextMenu={(e) => e.preventDefault()}
     >
+      {unread > 0 && <span className="lexion-ball-badge">{unread > 99 ? '99+' : unread}</span>}
       <img src={ballImage} alt="" draggable={false} />
     </button>
   );
