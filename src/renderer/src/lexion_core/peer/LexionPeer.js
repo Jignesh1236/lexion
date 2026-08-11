@@ -1,5 +1,16 @@
 import Peer from 'peerjs';
 
+function sanitizePeerId(value) {
+  if (!value) return null;
+  const clean = String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 48);
+  return clean || null;
+}
+
 export class LexionPeer {
   constructor(username, callbacks = {}) {
     this.cbs = callbacks;
@@ -16,6 +27,8 @@ export class LexionPeer {
     this.connectTimer = null;
     this.reconnectTimer = null;
     this.disposed = false;
+    this.myPeerId = sanitizePeerId(username);
+    this.partnerPeerId = null;
     this.state = {
       phase: 'starting',
       connected: false,
@@ -27,14 +40,26 @@ export class LexionPeer {
 
     const config = {
       iceServers: [
-        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' }
       ]
     };
 
-    this.peer = new Peer(username, { config });
+    if (!this.myPeerId) {
+      this.emit({ phase: 'error', message: 'Invalid username' });
+      return;
+    }
+
+    this.peer = new Peer(this.myPeerId, {
+      debug: 3,
+      config
+    });
 
     this.peer.on('open', (id) => {
-      this.isOpen = true;
+      this.myPeerId = id;
       this.emit({ phase: 'ready', message: `Ready: ${id}` });
     });
     this.peer.on('disconnected', () => {
@@ -49,9 +74,12 @@ export class LexionPeer {
         }, 500);
       }
     });
-    this.peer.on('error', (error) => this.emit({ phase: 'error', message: this.mapError(error) }));
+    this.peer.on('error', (error) => {
+      console.error('[LexionPeer] error:', error);
+      this.emit({ phase: 'error', message: this.mapError(error) });
+    });
     this.peer.on('call', (call) => this.handleIncomingCall(call));
-    this.peer.on('connection', (connection) => this.setupData(connection));
+    this.peer.on('connection', (connection) => this.handleIncomingConnection(connection));
   }
 
   emit(next) {
@@ -62,14 +90,30 @@ export class LexionPeer {
 
   async ensureMic() {
     if (this.localStream) return this.localStream;
-    this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    this.localStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      },
+      video: false
+    });
     this.micTrack = this.localStream.getAudioTracks()[0];
     if (this.micTrack) this.micTrack.enabled = false;
     return this.localStream;
   }
 
   async connect(partnerId) {
-    if (!partnerId) return;
+    const cleanPartner = sanitizePeerId(partnerId);
+    if (!cleanPartner) {
+      this.emit({ phase: 'error', message: 'Invalid partner username' });
+      return;
+    }
+    if (cleanPartner === this.myPeerId) {
+      this.emit({ phase: 'error', message: 'You cannot connect to yourself' });
+      return;
+    }
+    this.partnerPeerId = cleanPartner;
     this.emit({ phase: 'connecting', connected: false, message: 'Connecting...' });
 
     clearTimeout(this.connectTimer);
@@ -81,39 +125,40 @@ export class LexionPeer {
           message: 'Could not establish the voice call. Check the partner username, or if NAT blocks it try the same network.'
         });
       }
-    }, 15000);
+    }, 20000);
 
     try {
       const stream = await this.ensureMic();
       const startConnections = () => {
         if (this.disposed) return;
-        const data = this.peer.connect(partnerId);
-        this.setupData(data);
-        const call = this.peer.call(partnerId, stream);
-        this.setupCall(call);
+        const iAmInitiator = this.myPeerId < this.partnerPeerId;
+        if (iAmInitiator) {
+          const data = this.peer.connect(this.partnerPeerId, { reliable: true });
+          this.setupData(data);
+          const call = this.peer.call(this.partnerPeerId, stream);
+          this.setupCall(call);
+        }
       };
-      if (this.isOpen) startConnections();
+      if (this.peer.open) startConnections();
       else this.peer.once('open', startConnections);
     } catch (error) {
+      console.error('[LexionPeer] ensureMic failed:', error);
+      this.clearConnectTimer();
       this.emit({ phase: 'error', message: 'Microphone permission denied' });
     }
   }
 
   setupCall(call) {
+    if (this.disposed) return;
+
+    if (this.currentCall && this.currentCall !== call) {
+      try { this.currentCall.close(); } catch {}
+    }
     this.currentCall = call;
 
     call.on('stream', (remoteStream) => {
       this.clearConnectTimer();
-      let audio = document.getElementById('lexion-remote-audio');
-      if (!audio) {
-        audio = document.createElement('audio');
-        audio.id = 'lexion-remote-audio';
-        audio.autoplay = true;
-        document.body.appendChild(audio);
-      }
-      audio.srcObject = remoteStream;
-      audio.play().catch(() => {});
-
+      this.attachRemoteAudio(remoteStream);
       this.monitorRemoteAudio(remoteStream);
       this.emit({ connected: true, phase: 'connected', message: 'Connected' });
     });
@@ -121,20 +166,61 @@ export class LexionPeer {
     call.on('iceStateChanged', (state) => {
       if (state === 'connected' || state === 'completed') {
         this.clearConnectTimer();
-        this.emit({ connected: true, phase: 'connected', message: 'Connected' });
+        if (!this.state.connected) {
+          this.emit({ connected: true, phase: 'connected', message: 'Connected' });
+        }
+      } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+        if (this.state.connected) {
+          this.cleanupAudio();
+          this.emit({ connected: false, partnerSpeaking: false, phase: 'disconnected', message: 'Disconnected', talking: false });
+        }
       }
     });
 
     call.on('close', () => {
       this.clearConnectTimer();
       this.cleanupAudio();
+      if (this.currentCall === call) this.currentCall = null;
       this.emit({ connected: false, partnerSpeaking: false, phase: 'disconnected', message: 'Disconnected', talking: false });
     });
 
     call.on('error', (error) => {
+      console.error('[LexionPeer] call error:', error);
       this.clearConnectTimer();
       this.emit({ phase: 'error', message: 'Voice connection error' });
     });
+  }
+
+  attachRemoteAudio(remoteStream) {
+    try {
+      let audio = document.getElementById('lexion-remote-audio');
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.id = 'lexion-remote-audio';
+        audio.autoplay = true;
+        audio.playsInline = true;
+        audio.muted = false;
+        audio.setAttribute('playsinline', '');
+        audio.setAttribute('webkit-playsinline', '');
+        document.body.appendChild(audio);
+      }
+      audio.srcObject = remoteStream;
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch((err) => {
+          console.warn('[LexionPeer] audio.play blocked:', err);
+          const resumeOnce = () => {
+            audio.play().catch(() => {});
+            document.removeEventListener('click', resumeOnce);
+            document.removeEventListener('keydown', resumeOnce);
+          };
+          document.addEventListener('click', resumeOnce, { once: true });
+          document.addEventListener('keydown', resumeOnce, { once: true });
+        });
+      }
+    } catch (err) {
+      console.error('[LexionPeer] attachRemoteAudio error:', err);
+    }
   }
 
   clearConnectTimer() {
@@ -144,11 +230,39 @@ export class LexionPeer {
     }
   }
 
+  handleIncomingConnection(connection) {
+    if (this.disposed) {
+      try { connection.close(); } catch {}
+      return;
+    }
+    const partnerId = connection.peer;
+    if (this.partnerPeerId && this.partnerPeerId !== partnerId) {
+      try { connection.close(); } catch {}
+      return;
+    }
+    this.partnerPeerId = partnerId;
+    const iAmInitiator = this.myPeerId < partnerId;
+    if (iAmInitiator) {
+      try { connection.close(); } catch {}
+      return;
+    }
+    this.setupData(connection);
+  }
+
   setupData(connection) {
+    if (this.disposed) return;
+
+    if (this.dataConnection && this.dataConnection !== connection) {
+      try { this.dataConnection.close(); } catch {}
+    }
     this.dataConnection = connection;
 
-    connection.on('open', () => this.emit({ chatReady: true }));
+    connection.on('open', () => {
+      if (this.disposed) return;
+      this.emit({ chatReady: true });
+    });
     connection.on('data', (data) => {
+      if (this.disposed) return;
       if (data && data.type === 'message') this.cbs.onMessage?.(data.text);
     });
     connection.on('close', () => {
@@ -157,10 +271,27 @@ export class LexionPeer {
         this.emit({ chatReady: false });
       }
     });
-    connection.on('error', () => {});
+    connection.on('error', (err) => {
+      console.error('[LexionPeer] data connection error:', err);
+    });
   }
 
   handleIncomingCall(call) {
+    if (this.disposed) {
+      try { call.close(); } catch {}
+      return;
+    }
+    const partnerId = call.peer;
+    if (this.partnerPeerId && this.partnerPeerId !== partnerId) {
+      try { call.close(); } catch {}
+      return;
+    }
+    this.partnerPeerId = partnerId;
+    const iAmInitiator = this.myPeerId < partnerId;
+    if (iAmInitiator) {
+      try { call.close(); } catch {}
+      return;
+    }
     this.ensureMic()
       .then((stream) => {
         if (!this.disposed) {
@@ -168,13 +299,21 @@ export class LexionPeer {
           this.setupCall(call);
         }
       })
-      .catch(() => this.emit({ phase: 'error', message: 'Microphone permission denied' }));
+      .catch((err) => {
+        console.error('[LexionPeer] ensureMic for incoming call failed:', err);
+        this.emit({ phase: 'error', message: 'Microphone permission denied' });
+      });
   }
 
   sendMessage(text) {
     if (!this.dataConnection || !this.dataConnection.open) return false;
-    this.dataConnection.send({ type: 'message', text });
-    return true;
+    try {
+      this.dataConnection.send({ type: 'message', text });
+      return true;
+    } catch (err) {
+      console.error('[LexionPeer] sendMessage error:', err);
+      return false;
+    }
   }
 
   setMic(on) {
@@ -185,7 +324,10 @@ export class LexionPeer {
         this.micTrack.enabled = this.micOn;
         this.emit({ talking: this.micOn });
       })
-      .catch(() => this.emit({ phase: 'error', message: 'Microphone permission denied' }));
+      .catch((err) => {
+        console.error('[LexionPeer] setMic error:', err);
+        this.emit({ phase: 'error', message: 'Microphone permission denied' });
+      });
   }
 
   toggleMic() {
@@ -195,15 +337,27 @@ export class LexionPeer {
   monitorRemoteAudio(stream) {
     this.cleanupAudio();
     try {
-      this.audioContext = new AudioContext();
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      this.audioContext = new AudioCtx();
       const source = this.audioContext.createMediaStreamSource(stream);
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 512;
       source.connect(this.analyser);
       this.audioData = new Uint8Array(this.analyser.frequencyBinCount);
+      if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume().catch(() => {});
+        const resumeOnce = () => {
+          this.audioContext?.resume().catch(() => {});
+          document.removeEventListener('click', resumeOnce);
+          document.removeEventListener('keydown', resumeOnce);
+        };
+        document.addEventListener('click', resumeOnce, { once: true });
+        document.addEventListener('keydown', resumeOnce, { once: true });
+      }
       this.detectSpeaking();
     } catch (error) {
-      console.error(error);
+      console.error('[LexionPeer] monitorRemoteAudio error:', error);
     }
   }
 
@@ -219,20 +373,19 @@ export class LexionPeer {
 
   detectSpeaking() {
     if (!this.analyser || this.disposed) return;
-    this.analyser.getByteFrequencyData(this.audioData);
-
-    let total = 0;
-    for (let i = 0; i < this.audioData.length; i++) total += this.audioData[i];
-    const average = total / this.audioData.length;
-
-    if (average > 12) {
-      if (!this.state.partnerSpeaking) this.emit({ partnerSpeaking: true });
-      clearTimeout(this.speakTimer);
-      this.speakTimer = setTimeout(() => {
-        if (!this.disposed) this.emit({ partnerSpeaking: false });
-      }, 180);
-    }
-
+    try {
+      this.analyser.getByteFrequencyData(this.audioData);
+      let total = 0;
+      for (let i = 0; i < this.audioData.length; i++) total += this.audioData[i];
+      const average = total / this.audioData.length;
+      if (average > 12) {
+        if (!this.state.partnerSpeaking) this.emit({ partnerSpeaking: true });
+        clearTimeout(this.speakTimer);
+        this.speakTimer = setTimeout(() => {
+          if (!this.disposed) this.emit({ partnerSpeaking: false });
+        }, 180);
+      }
+    } catch {}
     if (!this.disposed) requestAnimationFrame(() => this.detectSpeaking());
   }
 
@@ -244,13 +397,14 @@ export class LexionPeer {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.cleanupAudio();
     if (this.micTrack) this.micTrack.enabled = false;
-    this.currentCall?.close();
-    this.dataConnection?.close();
+    try { this.currentCall?.close(); } catch {}
+    try { this.dataConnection?.close(); } catch {}
     this.localStream?.getTracks().forEach((track) => track.stop());
     this.localStream = null;
     this.micTrack = null;
-    this.isOpen = false;
-    this.peer?.destroy();
+    this.currentCall = null;
+    this.dataConnection = null;
+    try { this.peer?.destroy(); } catch {}
     this.peer = null;
   }
 

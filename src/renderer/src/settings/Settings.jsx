@@ -58,8 +58,8 @@ export default function Settings({ user }) {
     }
 
     const data = {
-      username: username.trim(),
-      partner: partner.trim()
+      username: sanitizePeerId(username.trim()) || username.trim(),
+      partner: sanitizePeerId(partner.trim()) || partner.trim()
     };
 
     await window.api.saveData('connect.json', data);
