@@ -4,6 +4,7 @@ import './Ball.css';
 
 const SNAP_DISTANCE = 24;
 const STASH_PEEK = 40;
+const DRAG_THRESHOLD = 5;
 const POSITION_KEY = 'lexion.ball.position';
 
 function loadPosition(size) {
@@ -102,7 +103,7 @@ function stashPosition(position, size) {
   return stashed;
 }
 
-export default function Ball({ size, connected, talking, partnerSpeaking, onRef, onPositionChange, onClick, onToggleVoice }) {
+export default function Ball({ size, connected, talking, partnerSpeaking, onRef, onPositionChange, onClick, onToggleVoice, onDragChange }) {
   const initial = loadPosition(size);
   const [position, setPosition] = useState({
     x: initial.x,
@@ -115,10 +116,11 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
   const [hovered, setHovered] = useState(false);
 
   const ballRef = useRef(null);
+  const dragRef = useRef(null);
   const movingRef = useRef(false);
   const stashedRef = useRef(stashed);
-  const dragRef = useRef(null);
   const positionRef = useRef(position);
+  const suppressClickRef = useRef(false);
   stashedRef.current = stashed;
   positionRef.current = position;
 
@@ -149,72 +151,101 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
     } catch {}
   };
 
-  useEffect(() => {
-    movingRef.current = moving;
-    if (!moving) return;
+  const beginMoving = () => {
+    if (movingRef.current) return;
+    movingRef.current = true;
+    setMoving(true);
+    onDragChange?.(true);
+    document.body.style.cursor = 'grabbing';
+  };
 
+  const endMoving = () => {
+    if (!movingRef.current) return;
+    movingRef.current = false;
+    setMoving(false);
+    onDragChange?.(false);
+    document.body.style.cursor = '';
+  };
+
+  const finalizeDrag = () => {
+    const current = positionRef.current;
+    suppressClickRef.current = true;
+
+    if (stashedRef.current) {
+      const restore = {
+        x: current.restoreX ?? current.x,
+        y: current.restoreY ?? current.y,
+        restoreX: null,
+        restoreY: null
+      };
+      setStashed(false);
+      setPosition(restore);
+      onPositionChange?.({ x: restore.x, y: restore.y });
+      savePosition(restore, false);
+      return;
+    }
+
+    const edge = findEdge(current, size);
+    if (edge) {
+      const stashedPos = stashPosition(current, size);
+      const restorePoint = clampInside(current.x, current.y, size);
+      const next = {
+        x: stashedPos.x,
+        y: stashedPos.y,
+        restoreX: restorePoint.x,
+        restoreY: restorePoint.y
+      };
+      setStashed(true);
+      setPosition(next);
+      onPositionChange?.({ x: next.x, y: next.y });
+      savePosition(next, true);
+      return;
+    }
+
+    const snapped = snapPosition({ ...current }, size);
+    setPosition(snapped);
+    onPositionChange?.({ x: snapped.x, y: snapped.y });
+    savePosition(snapped, false);
+  };
+
+  useEffect(() => {
     const onMove = (event) => {
-      if (!movingRef.current || !dragRef.current) return;
+      const info = dragRef.current;
+      if (!info) return;
+
+      if (info.button === 0) {
+        const distance = Math.hypot(event.clientX - info.startX, event.clientY - info.startY);
+        if (!info.moved && distance < DRAG_THRESHOLD) return;
+        if (!info.moved) {
+          info.moved = true;
+          beginMoving();
+        }
+      } else if (!info.moved) {
+        info.moved = true;
+        beginMoving();
+      }
+
       const next = {
         ...positionRef.current,
-        x: event.clientX - dragRef.current.offsetX,
-        y: event.clientY - dragRef.current.offsetY
+        x: event.clientX - info.offsetX,
+        y: event.clientY - info.offsetY
       };
       const inside = keepInside(next, size, stashedRef.current);
       setPosition(inside);
       onPositionChange?.({ x: inside.x, y: inside.y });
     };
 
-    const onUp = (event) => {
-      if (event.button !== 2) return;
+    const onUp = () => {
+      const info = dragRef.current;
+      if (!info) return;
       dragRef.current = null;
-      movingRef.current = false;
-      setMoving(false);
-      document.body.style.cursor = '';
-
-      const current = positionRef.current;
-
-      if (stashedRef.current) {
-        const restore = {
-          x: current.restoreX ?? current.x,
-          y: current.restoreY ?? current.y,
-          restoreX: null,
-          restoreY: null
-        };
-        setStashed(false);
-        setPosition(restore);
-        onPositionChange?.({ x: restore.x, y: restore.y });
-        savePosition(restore, false);
-        return;
-      }
-
-      const edge = findEdge(current, size);
-      if (edge) {
-        const stashedPos = stashPosition(current, size);
-        const next = {
-          x: stashedPos.x,
-          y: stashedPos.y,
-          restoreX: clampInside(current.x, current.y, size).x,
-          restoreY: clampInside(current.x, current.y, size).y
-        };
-        setStashed(true);
-        setPosition(next);
-        onPositionChange?.({ x: next.x, y: next.y });
-        savePosition(next, true);
-        return;
-      }
-
-      const snapped = snapPosition({ ...current }, size);
-      setPosition(snapped);
-      onPositionChange?.({ x: snapped.x, y: snapped.y });
-      savePosition(snapped, false);
+      if (info.moved) finalizeDrag();
+      endMoving();
     };
 
     const onCancel = () => {
       dragRef.current = null;
-      movingRef.current = false;
-      setMoving(false);
-      document.body.style.cursor = '';
+      endMoving();
     };
 
     window.addEventListener('mousemove', onMove);
@@ -225,21 +256,25 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('blur', onCancel);
     };
-  }, [moving, size, onPositionChange]);
+  }, [size, onPositionChange]);
 
   const onMouseDown = (event) => {
-    if (event.button === 0) {
-      if (stashedRef.current) event.preventDefault();
+    if (event.button !== 0 && event.button !== 2) return;
+
+    if (event.button === 0 && stashedRef.current) {
+      event.preventDefault();
       return;
     }
-    if (event.button !== 2) return;
+
     event.preventDefault();
     dragRef.current = {
+      button: event.button,
+      startX: event.clientX,
+      startY: event.clientY,
       offsetX: event.clientX - positionRef.current.x,
-      offsetY: event.clientY - positionRef.current.y
+      offsetY: event.clientY - positionRef.current.y,
+      moved: false
     };
-    setMoving(true);
-    document.body.style.cursor = 'grabbing';
   };
 
   const unstash = () => {
@@ -256,6 +291,10 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
   };
 
   const handleClick = () => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     if (stashedRef.current) {
       unstash();
       return;
@@ -287,7 +326,7 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
 
   const title = stashed
     ? 'Click to show'
-    : 'Click to chat • Double-click to toggle voice • Right-drag to move';
+    : 'Click to chat • Double-click to toggle voice • Drag to move';
 
   return (
     <button

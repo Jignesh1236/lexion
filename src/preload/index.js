@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('overlay', {
 
 contextBridge.exposeInMainWorld('lexion', {
   toggleOverlay: () => ipcRenderer.send('overlay:toggle-visible'),
+  updateHotkeys: (partial) => ipcRenderer.send('app:save-hotkeys', partial),
   onStatus: (callback) => {
     ipcRenderer.on('lexion:status', (_event, status) => callback(status));
     return () => ipcRenderer.removeAllListeners('lexion:status');

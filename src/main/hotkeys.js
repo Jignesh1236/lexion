@@ -1,12 +1,22 @@
 import { globalShortcut } from 'electron';
 import { getBallOverlay, toggleBallOverlay } from './overlays/ballOverlay.js';
 
+let currentSettings = null;
+
 export function applyHotkeys(settings) {
+  currentSettings = settings || null;
+  refreshHotkeys();
+}
+
+export function refreshHotkeys() {
   globalShortcut.unregisterAll();
 
-  if (!settings) return;
+  const settings = currentSettings;
+  if (!settings || !getBallOverlay()) return;
 
-  if (settings.pttKey) {
+  const overlayVisible = getBallOverlay().isVisible();
+
+  if (overlayVisible && settings.pttKey) {
     try {
       const ok = globalShortcut.register(settings.pttKey, () => {
         getBallOverlay()?.webContents.send('lexion:ptt-toggle');

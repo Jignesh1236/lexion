@@ -1,60 +1,73 @@
 import { useEffect, useRef, useState } from 'react';
 import './settings.css';
 
-const KEY_NAMES = {
-  Space: 'Space',
-  Enter: 'Enter',
-  Tab: 'Tab',
-  Escape: 'Esc',
-  Backspace: 'Backspace',
-  Delete: 'Del',
-  ArrowUp: 'Up',
-  ArrowDown: 'Down',
-  ArrowLeft: 'Left',
-  ArrowRight: 'Right',
-  ShiftLeft: 'Shift',
-  ShiftRight: 'Shift',
-  ControlLeft: 'Ctrl',
-  ControlRight: 'Ctrl',
-  AltLeft: 'Alt',
-  AltRight: 'Alt'
+const SPECIAL = {
+  Space: { token: 'Space', label: 'Space' },
+  Enter: { token: 'Enter', label: 'Enter' },
+  Tab: { token: 'Tab', label: 'Tab' },
+  Escape: { token: 'Escape', label: 'Esc' },
+  Backspace: { token: 'Backspace', label: 'Backspace' },
+  Delete: { token: 'Delete', label: 'Del' },
+  Insert: { token: 'Insert', label: 'Ins' },
+  Home: { token: 'Home', label: 'Home' },
+  End: { token: 'End', label: 'End' },
+  PageUp: { token: 'PageUp', label: 'PgUp' },
+  PageDown: { token: 'PageDown', label: 'PgDn' },
+  ArrowUp: { token: 'Up', label: 'Up' },
+  ArrowDown: { token: 'Down', label: 'Down' },
+  ArrowLeft: { token: 'Left', label: 'Left' },
+  ArrowRight: { token: 'Right', label: 'Right' }
 };
 
-function toAccelerator(event) {
+function buildBinding(event) {
   const parts = [];
-  if (event.ctrlKey) parts.push('Control');
-  if (event.altKey) parts.push('Alt');
-  if (event.shiftKey) parts.push('Shift');
-  if (event.metaKey) parts.push('Super');
+  const labelParts = [];
+  if (event.ctrlKey) {
+    parts.push('Control');
+    labelParts.push('Ctrl');
+  }
+  if (event.altKey) {
+    parts.push('Alt');
+    labelParts.push('Alt');
+  }
+  if (event.shiftKey) {
+    parts.push('Shift');
+    labelParts.push('Shift');
+  }
+  if (event.metaKey) {
+    parts.push('Super');
+    labelParts.push('Win');
+  }
 
-  let key = event.code || '';
-  if (/^Key[A-Z]$/.test(key)) key = key.slice(3);
-  else if (/^Digit\d$/.test(key)) key = key.slice(5);
-  else if (/^F\d{1,2}$/.test(key)) key = key;
-  else if (key === 'Space') key = 'Space';
-  else if (/^Numpad\d$/.test(key)) key = key.slice(6);
-  else if (/^Arrow/.test(key)) key = key.slice(5);
-  else if (['Escape', 'Enter', 'Tab', 'Backspace', 'Delete', 'Home', 'End', 'PageUp', 'PageDown'].includes(key)) key = key;
-  else return null;
-
-  return [...parts, key].join('+');
-}
-
-function toLabel(event) {
-  const parts = [];
-  if (event.ctrlKey) parts.push('Ctrl');
-  if (event.altKey) parts.push('Alt');
-  if (event.shiftKey) parts.push('Shift');
-  if (event.metaKey) parts.push('Win');
+  const finish = (token, label) => ({
+    accelerator: [...parts, token].join('+'),
+    label: [...labelParts, label].join('+')
+  });
 
   const code = event.code || '';
-  let key = code;
-  if (/^Key[A-Z]$/.test(code)) key = code.slice(3);
-  else if (/^Digit\d$/.test(code)) key = code.slice(5);
-  else if (/^F\d{1,2}$/.test(code)) key = code;
-  else if (KEY_NAMES[code]) key = KEY_NAMES[code];
 
-  return [...parts, key].join('+') || 'None';
+  if (code === 'ControlLeft' || code === 'ControlRight' || code === 'ShiftLeft' || code === 'ShiftRight' || code === 'AltLeft' || code === 'AltRight' || code === 'MetaLeft' || code === 'MetaRight') return null;
+
+  const fnMatch = /^F\d{1,2}$/.test(code);
+  if (fnMatch) return finish(code, code);
+
+  const key = event.key;
+  if (key && key.length === 1) {
+    let token = key;
+    if (/^[a-zA-Z]$/.test(token)) token = token.toUpperCase();
+    if (token === ' ') token = 'Space';
+    return finish(token, token);
+  }
+
+  if (code === 'Space') return finish('Space', 'Space');
+
+  const special = SPECIAL[code];
+  if (special) return finish(special.token, special.label);
+
+  const numMatch = code.match(/^Numpad(\d)$/);
+  if (numMatch) return finish('num' + numMatch[1], 'Num ' + numMatch[1]);
+
+  return null;
 }
 
 function statusText(status) {
@@ -122,16 +135,17 @@ export default function Settings() {
         return;
       }
 
-      const accel = toAccelerator(event);
-      if (!accel) return;
-      const label = toLabel(event);
+      const binding = buildBinding(event);
+      if (!binding) return;
 
       if (which === 'ptt') {
-        setPttAccel(accel);
-        setPttLabel(label);
+        setPttAccel(binding.accelerator);
+        setPttLabel(binding.label);
+        window.lexion?.updateHotkeys?.({ pttKey: binding.accelerator, pttLabel: binding.label });
       } else {
-        setToggleAccel(accel);
-        setToggleLabel(label);
+        setToggleAccel(binding.accelerator);
+        setToggleLabel(binding.label);
+        window.lexion?.updateHotkeys?.({ overlayToggleKey: binding.accelerator, overlayToggleLabel: binding.label });
       }
       setListening(null);
     };
@@ -179,6 +193,10 @@ export default function Settings() {
       </label>
 
       <h2>Keybindings</h2>
+      <p className="settings-hint">
+        Press any key to set it — letters, numbers, symbols and F-keys all work. The pressed key is detected directly,
+        so custom keyboard layouts work too. Push-to-talk is disabled while the floating ball is hidden.
+      </p>
 
       <div className="settings-field">
         <span>Push-to-talk (toggle mic)</span>

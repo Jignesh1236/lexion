@@ -1,8 +1,8 @@
 import { app, BrowserWindow, Menu, ipcMain, globalShortcut, Tray, nativeImage } from 'electron';
 import { join, basename } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
-import { createBallOverlay, getBallOverlay, showBallOverlay, hideBallOverlay, toggleBallOverlay } from './overlays/ballOverlay.js';
-import { applyHotkeys } from './hotkeys.js';
+import { createBallOverlay, getBallOverlay, showBallOverlay, hideBallOverlay, toggleBallOverlay, onOverlayVisibilityChange } from './overlays/ballOverlay.js';
+import { applyHotkeys, refreshHotkeys } from './hotkeys.js';
 
 const DATA_DIR = join(app.getPath('userData'), '.appdata');
 
@@ -42,6 +42,20 @@ ipcMain.handle('app:save-data', (_event, file, data) => {
 });
 
 ipcMain.handle('app:load-data', (_event, file) => readDataFile(file));
+
+function mergeDataFile(file, partial) {
+  const existing = readDataFile(file) || {};
+  const merged = { ...existing, ...partial };
+  ensureDataDir();
+  writeFileSync(join(DATA_DIR, basename(file)), JSON.stringify(merged, null, 2));
+  return merged;
+}
+
+ipcMain.on('app:save-hotkeys', (_event, partial) => {
+  if (!partial || typeof partial !== 'object') return;
+  const merged = mergeDataFile('connect.json', partial);
+  applyHotkeys(merged);
+});
 
 ipcMain.on('app:open-main', () => {
   if (!mainWindow) return;
@@ -144,6 +158,7 @@ app.whenReady().then(() => {
   createBallOverlay();
   createTray();
   applyHotkeys(readDataFile('connect.json'));
+  onOverlayVisibilityChange(refreshHotkeys);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

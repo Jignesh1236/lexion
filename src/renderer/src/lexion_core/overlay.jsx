@@ -40,6 +40,7 @@ function Overlay() {
   const chatRef = useRef(null);
   const setupRef = useRef(null);
   const interactiveRef = useRef(false);
+  const draggingRef = useRef(false);
   const chatOpenRef = useRef(false);
   chatOpenRef.current = chatOpen;
 
@@ -103,6 +104,8 @@ function Overlay() {
   }, []);
 
   const isInsideInteractive = useCallback((x, y) => {
+    if (draggingRef.current) return true;
+
     const ballRect = ballRectRef.current;
     if (ballRect && hitCircle(x, y, ballRect, BALL_SIZE)) return true;
 
@@ -177,6 +180,12 @@ function Overlay() {
         onPositionChange={setBallPos}
         onClick={onBallClick}
         onToggleVoice={onToggleVoice}
+        onDragChange={(dragging) => {
+          draggingRef.current = dragging;
+          if (!dragging) {
+            interactiveRef.current = false;
+          }
+        }}
       />
 
       <Chat

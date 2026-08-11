@@ -4,6 +4,16 @@ import { join } from 'path';
 let overlayWin = null;
 let ipcReady = false;
 
+const visibilityListeners = [];
+
+export function onOverlayVisibilityChange(listener) {
+  visibilityListeners.push(listener);
+}
+
+function notifyVisibilityChange() {
+  for (const listener of visibilityListeners) listener();
+}
+
 export function createBallOverlay() {
   const { x, y, width, height } = screen.getPrimaryDisplay().bounds;
 
@@ -64,10 +74,13 @@ export function showBallOverlay() {
   if (!overlayWin) return;
   overlayWin.show();
   overlayWin.setIgnoreMouseEvents(true, { forward: true });
+  notifyVisibilityChange();
 }
 
 export function hideBallOverlay() {
-  overlayWin?.hide();
+  if (!overlayWin) return;
+  overlayWin.hide();
+  notifyVisibilityChange();
 }
 
 export function toggleBallOverlay() {
