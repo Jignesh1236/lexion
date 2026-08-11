@@ -7,7 +7,7 @@ import './overlay.css';
 
 const BALL_SIZE = 72;
 
-function buildInteractiveAreas(ballRect, chatRect, setupRect) {
+function buildInteractiveAreas(ballRect, chatRect, setupRect, previewRect) {
   const areas = [];
 
   if (ballRect) {
@@ -21,6 +21,10 @@ function buildInteractiveAreas(ballRect, chatRect, setupRect) {
 
   if (setupRect) {
     areas.push({ type: 'rect', x: setupRect.left, y: setupRect.top, w: setupRect.width, h: setupRect.height });
+  }
+
+  if (previewRect) {
+    areas.push({ type: 'rect', x: previewRect.left, y: previewRect.top, w: previewRect.width, h: previewRect.height });
   }
 
   return areas;
@@ -46,16 +50,20 @@ function Overlay() {
   const ballRectRef = useRef(null);
   const chatRef = useRef(null);
   const setupRef = useRef(null);
+  const previewRef = useRef(null);
   const draggingRef = useRef(false);
   const chatOpenRef = useRef(false);
   const previewTimerRef = useRef(null);
+  const settingsRef = useRef(null);
   chatOpenRef.current = chatOpen;
+  settingsRef.current = settings;
 
   const reportAreas = useCallback(() => {
     const ballRect = ballRectRef.current?.getBoundingClientRect?.();
     const chatRect = chatOpenRef.current ? chatRef.current?.getBoundingClientRect?.() : null;
     const setupRect = setupRef.current?.getBoundingClientRect?.();
-    const areas = buildInteractiveAreas(ballRect, chatRect, setupRect);
+    const previewRect = previewRef.current?.getBoundingClientRect?.();
+    const areas = buildInteractiveAreas(ballRect, chatRect, setupRect, previewRect);
     window.overlay?.setAreas?.(areas);
   }, []);
 
@@ -137,9 +145,10 @@ function Overlay() {
     setMessages((list) => [...list.slice(-19), { text, partner: true, time: Date.now() }]);
     if (!chatOpenRef.current) {
       setUnread((n) => n + 1);
+      const duration = Math.max(1, Math.min(60, Number(settingsRef.current?.toastDurationSec) || 5)) * 1000;
       setPreview({ text, time: Date.now() });
       clearTimeout(previewTimerRef.current);
-      previewTimerRef.current = setTimeout(() => setPreview(null), 4000);
+      previewTimerRef.current = setTimeout(() => setPreview(null), duration);
     }
   }, []);
 
@@ -289,11 +298,29 @@ function Overlay() {
       if (next) {
         setUnread(0);
         setPreview(null);
+        clearTimeout(previewTimerRef.current);
       }
       return next;
     });
     setTimeout(reportAreas, 0);
     setTimeout(reportAreas, 50);
+    setTimeout(reportAreas, 150);
+  };
+
+  const onPreviewClick = () => {
+    setChatOpen(true);
+    setPreview(null);
+    setUnread(0);
+    clearTimeout(previewTimerRef.current);
+    setTimeout(reportAreas, 0);
+    setTimeout(reportAreas, 50);
+  };
+
+  const dismissPreview = (e) => {
+    e?.stopPropagation?.();
+    setPreview(null);
+    clearTimeout(previewTimerRef.current);
+    setTimeout(reportAreas, 0);
   };
 
   const onToggleVoice = () => {
@@ -358,14 +385,31 @@ function Overlay() {
 
       {preview && !chatOpen && ballPos && (
         <div
+          ref={previewRef}
           key={preview.time}
           className="lexion-preview"
           style={{
             left: Math.min(ballPos.x + BALL_SIZE + 10, Math.max(10, window.innerWidth - 280)),
-            top: Math.min(ballPos.y, Math.max(0, window.innerHeight - 60))
+            top: Math.min(ballPos.y, Math.max(0, window.innerHeight - 80))
+          }}
+          onClick={onPreviewClick}
+          role="button"
+          tabIndex={0}
+          title="Click to open chat"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') onPreviewClick();
+            if (e.key === 'Escape') dismissPreview(e);
           }}
         >
-          {preview.text}
+          <span className="lexion-preview-text">{preview.text}</span>
+          <button
+            type="button"
+            className="lexion-preview-close"
+            title="Dismiss"
+            onClick={dismissPreview}
+          >
+            ✕
+          </button>
         </div>
       )}
 

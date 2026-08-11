@@ -32,8 +32,27 @@ export class LexionPeer {
 
     const config = {
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun.relay.metered.ca:80' },
+        {
+          urls: 'turn:global.relay.metered.ca:80',
+          username: '9f23fcb6ae4866c25d19a656',
+          credential: 'ARad9ty6YsFTxJS9'
+        },
+        {
+          urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+          username: '9f23fcb6ae4866c25d19a656',
+          credential: 'ARad9ty6YsFTxJS9'
+        },
+        {
+          urls: 'turn:global.relay.metered.ca:443',
+          username: '9f23fcb6ae4866c25d19a656',
+          credential: 'ARad9ty6YsFTxJS9'
+        },
+        {
+          urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+          username: '9f23fcb6ae4866c25d19a656',
+          credential: 'ARad9ty6YsFTxJS9'
+        }
       ]
     };
 
@@ -137,6 +156,10 @@ export class LexionPeer {
     this.connectTimer = setTimeout(() => {
       if (this.disposed) return;
       if (this.state.phase === 'connecting' && !this.state.connected) {
+        try { this.currentCall?.close(); } catch {}
+        try { this.dataConnection?.close(); } catch {}
+        this.currentCall = null;
+        this.dataConnection = null;
         this.emit({
           phase: 'error',
           message: 'Could not establish the voice call. Check the partner username, or if NAT blocks it try the same network.'
@@ -265,13 +288,18 @@ export class LexionPeer {
     const hasDataConn = this.dataConnection && this.dataConnection !== connection;
     const existingPartner = this.dataConnection?.peer;
     if (knownPartner && hasDataConn && existingPartner === partnerId) {
-      const iKeepIncoming = partnerId < this.myPeerId;
-      if (!iKeepIncoming) {
-        console.warn('[LexionPeer] dedup: closing incoming data conn, keeping existing');
-        try { connection.close(); } catch {}
-        return;
+      const existingOpen = !!this.dataConnection.open;
+      if (!existingOpen) {
+        console.warn('[LexionPeer] dedup: existing data conn not open, replacing with incoming');
+      } else {
+        const iKeepIncoming = partnerId < this.myPeerId;
+        if (!iKeepIncoming) {
+          console.warn('[LexionPeer] dedup: closing incoming data conn, keeping existing');
+          try { connection.close(); } catch {}
+          return;
+        }
+        console.warn('[LexionPeer] dedup: replacing outgoing data conn with incoming');
       }
-      console.warn('[LexionPeer] dedup: replacing outgoing data conn with incoming');
     }
     if (!this.partnerPeerId) this.partnerPeerId = partnerId;
     this.setupData(connection);
@@ -331,13 +359,18 @@ export class LexionPeer {
     const hasCall = this.currentCall && this.currentCall !== call;
     const existingPartner = this.currentCall?.peer;
     if (knownPartner && hasCall && existingPartner === partnerId) {
-      const iKeepIncoming = partnerId < this.myPeerId;
-      if (!iKeepIncoming) {
-        console.warn('[LexionPeer] dedup: closing incoming call, keeping existing');
-        try { call.close(); } catch {}
-        return;
+      const existingLive = this.state.connected;
+      if (!existingLive) {
+        console.warn('[LexionPeer] dedup: existing call not connected, replacing with incoming');
+      } else {
+        const iKeepIncoming = partnerId < this.myPeerId;
+        if (!iKeepIncoming) {
+          console.warn('[LexionPeer] dedup: closing incoming call, keeping existing');
+          try { call.close(); } catch {}
+          return;
+        }
+        console.warn('[LexionPeer] dedup: replacing outgoing call with incoming');
       }
-      console.warn('[LexionPeer] dedup: replacing outgoing call with incoming');
     }
     if (!this.partnerPeerId) this.partnerPeerId = partnerId;
     this.ensureMic()

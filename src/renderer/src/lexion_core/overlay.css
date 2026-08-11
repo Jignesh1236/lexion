@@ -55,46 +55,66 @@
 
 .lexion-preview {
   position: fixed;
-
-  max-width: 260px;
-
-  padding: 8px 12px;
-
-  border-radius: 12px;
-
-  background: rgba(20, 20, 20, 0.95);
-
-  border: 1px solid rgba(255, 255, 255, 0.1);
-
-  color: white;
-
-  font-size: 12px;
-
-  line-height: 1.4;
-
+  max-width: 270px;
+  min-width: 180px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 15px;
+  background: rgba(20, 20, 20, 0.94);
+  border: 1px solid rgba(88, 101, 242, 0.35);
+  color: #f0f0f0;
+  font-family: 'Varela Round', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
   word-break: break-word;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(14px);
+  cursor: pointer;
+  user-select: none;
+  z-index: 10000;
+  animation: lexionPreviewIn 0.22s cubic-bezier(0.2, 0.9, 0.25, 1.1);
+}
 
-  box-shadow:
-    0 8px 25px
-    rgba(0, 0, 0, 0.35);
+.lexion-preview:focus {
+  outline: 2px solid #5865f2;
+  outline-offset: 2px;
+}
 
-  pointer-events: none;
+.lexion-preview-text {
+  flex: 1;
+  min-width: 0;
+}
 
-  z-index: 9999;
+.lexion-preview-close {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #aaa;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
 
-  animation: lexionPreviewIn 0.18s ease;
+.lexion-preview-close:hover {
+  background: rgba(255, 80, 80, 0.25);
+  color: #ff8a8a;
 }
 
 @keyframes lexionPreviewIn {
   from {
     opacity: 0;
-
-    transform: translateY(6px);
+    transform: translateY(8px) scale(0.96);
   }
-
   to {
     opacity: 1;
-
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
