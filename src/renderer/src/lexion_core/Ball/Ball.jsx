@@ -5,6 +5,7 @@ import './Ball.css';
 const SNAP_DISTANCE = 24;
 const STASH_PEEK = 40;
 const HOLD_TO_TALK_TIME = 450;
+const DRAG_THRESHOLD = 5;
 const POSITION_KEY = 'lexion.ball.position';
 
 function loadPosition(size) {
@@ -121,10 +122,19 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
   const stashedRef = useRef(stashed);
   const positionRef = useRef(position);
   const suppressClickRef = useRef(false);
+  const suppressResetTimerRef = useRef(null);
   const holdTimerRef = useRef(null);
   const holdingTalkingRef = useRef(false);
   stashedRef.current = stashed;
   positionRef.current = position;
+
+  const armSuppressionSafety = () => {
+    if (suppressResetTimerRef.current) clearTimeout(suppressResetTimerRef.current);
+    suppressResetTimerRef.current = setTimeout(() => {
+      suppressClickRef.current = false;
+      suppressResetTimerRef.current = null;
+    }, 500);
+  };
 
   useEffect(() => {
     const inside = keepInside(initial, size, initial.stashed);
@@ -138,7 +148,10 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
     onPositionChange?.({ x: next.x, y: next.y });
   }, []);
 
-  useEffect(() => () => clearTimeout(holdTimerRef.current), []);
+  useEffect(() => () => {
+    clearTimeout(holdTimerRef.current);
+    clearTimeout(suppressResetTimerRef.current);
+  }, []);
 
   const savePosition = (nextPosition, nextStashed) => {
     try {
@@ -158,6 +171,7 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
   const finalizeDrag = () => {
     const current = positionRef.current;
     suppressClickRef.current = true;
+    armSuppressionSafety();
 
     if (stashedRef.current) {
       const restore = {
@@ -207,17 +221,36 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
     const onMove = (event) => {
       const active = activeRef.current;
       if (!active) return;
-      if (active.kind !== 'drag') return;
 
-      active.moved = true;
-      const next = {
-        ...positionRef.current,
-        x: event.clientX - active.offsetX,
-        y: event.clientY - active.offsetY
-      };
-      const inside = keepInside(next, size, stashedRef.current);
-      setPosition(inside);
-      onPositionChange?.({ x: inside.x, y: inside.y });
+      if (active.kind === 'drag') {
+        active.moved = true;
+        const next = {
+          ...positionRef.current,
+          x: event.clientX - active.offsetX,
+          y: event.clientY - active.offsetY
+        };
+        const inside = keepInside(next, size, stashedRef.current);
+        setPosition(inside);
+        onPositionChange?.({ x: inside.x, y: inside.y });
+        return;
+      }
+
+      if (active.kind === 'press') {
+        const dx = event.clientX - active.startX;
+        const dy = event.clientY - active.startY;
+        if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+          clearTimeout(holdTimerRef.current);
+          holdTimerRef.current = null;
+          stopHoldingTalk();
+          active.kind = 'drag';
+          active.moved = true;
+          active.offsetX = event.clientX - positionRef.current.x;
+          active.offsetY = event.clientY - positionRef.current.y;
+          movingRef.current = true;
+          setMoving(true);
+          document.body.style.cursor = 'grabbing';
+        }
+      }
     };
 
     const onUp = () => {
@@ -235,6 +268,7 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
       } else {
         if (holdingTalkingRef.current) {
           suppressClickRef.current = true;
+          armSuppressionSafety();
           stopHoldingTalk();
         }
       }
@@ -276,9 +310,14 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
     }
 
     event.preventDefault();
+    suppressClickRef.current = false;
+    if (suppressResetTimerRef.current) {
+      clearTimeout(suppressResetTimerRef.current);
+      suppressResetTimerRef.current = null;
+    }
 
     if (event.button === 0) {
-      activeRef.current = { kind: 'press' };
+      activeRef.current = { kind: 'press', startX: event.clientX, startY: event.clientY };
       onDragChange?.(true);
 
       clearTimeout(holdTimerRef.current);
@@ -294,7 +333,9 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
         kind: 'drag',
         moved: false,
         offsetX: event.clientX - positionRef.current.x,
-        offsetY: event.clientY - positionRef.current.y
+        offsetY: event.clientY - positionRef.current.y,
+        startX: event.clientX,
+        startY: event.clientY
       };
       movingRef.current = true;
       setMoving(true);
@@ -319,6 +360,10 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
   const handleClick = () => {
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
+      if (suppressResetTimerRef.current) {
+        clearTimeout(suppressResetTimerRef.current);
+        suppressResetTimerRef.current = null;
+      }
       return;
     }
     if (stashedRef.current) {
@@ -330,6 +375,8 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
 
   const handleDoubleClick = () => {
     if (stashedRef.current) return;
+    suppressClickRef.current = true;
+    armSuppressionSafety();
     onToggleVoice?.();
   };
 
@@ -352,12 +399,13 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
 
   const title = stashed
     ? 'Click to show'
-    : 'Click to chat • Hold to talk • Right-drag to move';
+    : 'Click to chat • Hold to talk • Right-drag to move • Double-click to toggle mic';
 
   return (
     <button
       ref={setupRef}
       id="lexion-ball"
+      type="button"
       className={className}
       style={{ width: size, height: size, left: position.x, top: position.y }}
       title={title}
@@ -368,7 +416,7 @@ export default function Ball({ size, connected, talking, partnerSpeaking, onRef,
       onMouseLeave={() => setHovered(false)}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <img src={ballImage} alt="" draggable="false" />
+      <img src={ballImage} alt="" draggable={false} />
     </button>
   );
 }

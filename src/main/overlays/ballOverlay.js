@@ -92,8 +92,9 @@ function registerOverlayIpc() {
 
   ipcMain.on('overlay:force-ignore', (event) => {
     if (event.sender !== overlayWin?.webContents) return;
-    ignoreLockUntil = Date.now() + 400;
-    updateInteractive();
+    ignoreLockUntil = Date.now() + 250;
+    interactive = false;
+    overlayWin.setIgnoreMouseEvents(true, { forward: true });
   });
 }
 

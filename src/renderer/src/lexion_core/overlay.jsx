@@ -183,14 +183,36 @@ function Overlay() {
   useEffect(() => {
     const onBlur = () => {
       setChatOpen(false);
-      window.overlay?.forceIgnore?.();
+      if (!draggingRef.current) window.overlay?.forceIgnore?.();
     };
     window.addEventListener('blur', onBlur);
     return () => window.removeEventListener('blur', onBlur);
   }, []);
 
-  const onBallClick = () => setChatOpen((open) => !open);
-  const onToggleVoice = () => peerRef.current?.toggleMic();
+  const onBallClick = () => {
+    reportAreas();
+    setChatOpen((open) => !open);
+    setTimeout(reportAreas, 0);
+    setTimeout(reportAreas, 50);
+  };
+
+  const onToggleVoice = () => {
+    peerRef.current?.toggleMic();
+  };
+
+  const onBallTalkStart = () => {
+    const peer = peerRef.current;
+    if (!peer) return;
+    peer.ensureMic().then(
+      () => peer.setMic(true),
+      (err) => {
+        console.warn('onBallTalkStart ensureMic failed:', err);
+        pushStatus({ phase: 'error', message: 'Microphone permission denied' });
+      }
+    );
+  };
+
+  const onBallTalkStop = () => peerRef.current?.setMic(false);
 
   const onDragChange = (dragging) => {
     draggingRef.current = dragging;
@@ -229,8 +251,8 @@ function Overlay() {
         onClick={onBallClick}
         onToggleVoice={onToggleVoice}
         onDragChange={onDragChange}
-        onTalkStart={() => peerRef.current?.setMic(true)}
-        onTalkStop={() => peerRef.current?.setMic(false)}
+        onTalkStart={onBallTalkStart}
+        onTalkStop={onBallTalkStop}
       />
 
       <Chat
