@@ -1,0 +1,185 @@
+.settings {
+  width: 42vw;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 1rem;
+
+  margin-left: 12rem;
+
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.settings h2 {
+  margin: 0.5rem 0 0;
+
+  color: var(--color-text-secondary);
+
+  font-size: 15px;
+
+  font-weight: 600;
+
+  letter-spacing: 0.05em;
+
+  text-transform: uppercase;
+}
+
+.settings-hint {
+  margin: 0;
+
+  color: var(--color-text-tertiary);
+
+  font-size: 12px;
+
+  line-height: 1.5;
+}
+
+.settings-field {
+  display: grid;
+
+  gap: 0.4rem;
+}
+
+.settings-field > span {
+  color: var(--color-text-tertiary);
+
+  font-size: 12px;
+}
+
+.settings-field input {
+  width: 100%;
+
+  padding: 9px 12px;
+
+  font-family: "IBM Plex Mono", monospace;
+
+  font-size: 13px;
+
+  box-sizing: border-box;
+}
+
+.settings-field input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.settings-key {
+  width: fit-content;
+
+  min-width: 120px;
+
+  padding: 8px 14px;
+
+  background: var(--color-surface-strong);
+
+  color: var(--color-text-secondary);
+
+  border: 1px solid var(--color-border-default);
+
+  border-radius: 6px;
+
+  cursor: pointer;
+
+  font-family: "IBM Plex Mono", monospace;
+
+  font-size: 13px;
+
+  text-transform: uppercase;
+
+  transition: background 150ms ease;
+}
+
+.settings-key:hover {
+  background: var(--color-surface-base);
+}
+
+.settings-key.is-listening {
+  background: #5865f2;
+
+  color: white;
+
+  border-color: #5865f2;
+}
+
+.settings-actions {
+  display: flex;
+
+  gap: 0.75rem;
+
+  margin-top: 0.25rem;
+}
+
+.settings-save {
+  background: #5865f2;
+
+  color: white;
+
+  border: none;
+
+  padding: 9px 18px;
+
+  border-radius: 6px;
+
+  cursor: pointer;
+
+  font-family: "IBM Plex Mono", monospace;
+
+  font-size: 13px;
+}
+
+.settings-save:hover {
+  background: #4752c4;
+}
+
+.settings-meta {
+  background: var(--color-surface-strong);
+
+  color: var(--color-text-secondary);
+
+  border: 1px solid var(--color-border-default);
+
+  padding: 9px 18px;
+
+  border-radius: 6px;
+
+  cursor: pointer;
+
+  font-family: "IBM Plex Mono", monospace;
+
+  font-size: 13px;
+}
+
+.settings-meta:hover {
+  background: var(--color-surface-base);
+}
+
+.settings-error {
+  margin: 0;
+
+  color: var(--color-state-error);
+
+  font-size: 12px;
+}
+
+.settings-status {
+  margin: 0;
+
+  padding: 8px 12px;
+
+  border: 1px solid var(--color-border-default);
+
+  border-radius: 6px;
+
+  color: var(--color-text-tertiary);
+
+  font-size: 12px;
+
+  background: var(--color-surface-strong);
+}
+
+.settings-status.is-talking {
+  color: #e5c07b;
+
+  border-color: #e5c07b;
+}

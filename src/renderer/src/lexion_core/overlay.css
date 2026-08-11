@@ -1,0 +1,54 @@
+.lexion-ball,
+.lexion-chat,
+.lexion-setup {
+  pointer-events: auto;
+}
+
+.lexion-setup {
+  position: fixed;
+
+  right: 12px;
+  bottom: 96px;
+
+  padding: 12px 14px;
+
+  background: rgba(20, 20, 20, 0.94);
+
+  color: white;
+
+  border-radius: 12px;
+
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.3);
+
+  font-family: system-ui, -apple-system, sans-serif;
+
+  z-index: 9990;
+}
+
+.lexion-setup p {
+  margin: 0 0 10px;
+
+  font-size: 12px;
+
+  color: #bbb;
+}
+
+.lexion-setup button {
+  padding: 7px 12px;
+
+  border: 0;
+
+  border-radius: 7px;
+
+  background: #5865f2;
+
+  color: white;
+
+  cursor: pointer;
+
+  font-size: 12px;
+}
+
+.lexion-setup button:hover {
+  background: #4752c4;
+}

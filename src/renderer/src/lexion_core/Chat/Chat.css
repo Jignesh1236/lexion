@@ -1,0 +1,219 @@
+#lexion-chat {
+  position: fixed;
+
+  width: 300px;
+
+  display: none;
+
+  flex-direction: column;
+
+  gap: 7px;
+
+  z-index: 9998;
+
+  font-family: system-ui, -apple-system, sans-serif;
+
+  -webkit-user-select: none;
+}
+
+#lexion-chat.composer-top {
+  flex-direction: column-reverse;
+}
+
+#lexion-chat:empty {
+  display: none;
+}
+
+#lexion-messages {
+  width: 100%;
+
+  max-height: 42vh;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 6px;
+
+  overflow-y: auto;
+
+  padding: 3px;
+
+  scrollbar-width: thin;
+
+  touch-action: pan-y;
+}
+
+#lexion-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+#lexion-messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+}
+
+.lexion-message {
+  flex-shrink: 0;
+
+  max-width: 250px;
+
+  padding: 8px 11px;
+
+  border-radius: 12px;
+
+  background: #5865f2;
+
+  color: white;
+
+  font-size: 13px;
+
+  line-height: 1.35;
+
+  word-break: break-word;
+
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.25);
+
+  animation: lexionMessageIn 0.18s ease;
+}
+
+.lexion-message.is-partner {
+  background: rgba(48, 48, 48, 0.97);
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+#lexion-chat.composer-top .lexion-message {
+  align-self: flex-start;
+}
+
+#lexion-chat:not(.composer-top) .lexion-message {
+  align-self: flex-end;
+}
+
+@keyframes lexionMessageIn {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+#lexion-composer {
+  position: relative;
+
+  width: 100%;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 5px;
+
+  padding: 5px;
+
+  background: rgba(20, 20, 20, 0.97);
+
+  border-radius: 13px;
+
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+
+  -webkit-user-select: auto;
+}
+
+#lexion-input {
+  flex: 1;
+
+  min-width: 0;
+
+  padding: 8px 9px;
+
+  border: 0;
+
+  outline: none;
+
+  background: transparent;
+
+  color: white;
+
+  font-size: 13px;
+}
+
+#lexion-input::placeholder {
+  color: #777;
+}
+
+#lexion-send {
+  width: 30px;
+  height: 30px;
+
+  flex-shrink: 0;
+
+  border: 0;
+
+  border-radius: 8px;
+
+  background: #5865f2;
+
+  color: white;
+
+  cursor: pointer;
+
+  font-size: 14px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+}
+
+#lexion-send:hover {
+  background: #4752c4;
+}
+
+#lexion-send:disabled,
+#lexion-input:disabled {
+  opacity: 0.5;
+
+  cursor: default;
+}
+
+.lexion-chat-status {
+  padding: 3px 8px;
+
+  border: 0;
+
+  border-radius: 8px;
+
+  font-size: 11px;
+
+  color: #c9c2c2;
+
+  text-align: center;
+
+  background: rgba(20, 20, 20, 0.8);
+
+  cursor: pointer;
+}
+
+.lexion-chat-status:hover {
+  background: rgba(40, 40, 40, 0.9);
+}
+
+.lexion-chat-status.is-connected {
+  color: #98c379;
+}
+
+.lexion-chat-status.is-connecting,
+.lexion-chat-status.is-talking {
+  color: #e5c07b;
+}
+
+.lexion-chat-status.is-error {
+  color: #ff6b6b;
+}

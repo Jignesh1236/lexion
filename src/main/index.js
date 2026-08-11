@@ -1,8 +1,14 @@
-import { app, BrowserWindow, Menu, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, globalShortcut, Tray, nativeImage } from 'electron';
 import { join, basename } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
+import { createBallOverlay, getBallOverlay, showBallOverlay, hideBallOverlay, toggleBallOverlay } from './overlays/ballOverlay.js';
+import { applyHotkeys } from './hotkeys.js';
 
 const DATA_DIR = join(app.getPath('userData'), '.appdata');
+
+let mainWindow = null;
+let tray = null;
+let isQuitting = false;
 
 function ensureDataDir() {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
@@ -12,14 +18,7 @@ function deleteAppData() {
   if (existsSync(DATA_DIR)) rmSync(DATA_DIR, { recursive: true, force: true });
 }
 
-ipcMain.handle('app:save-data', (_event, file, data) => {
-  ensureDataDir();
-  const safeFile = basename(file);
-  writeFileSync(join(DATA_DIR, safeFile), JSON.stringify(data, null, 2));
-  return join(DATA_DIR, safeFile);
-});
-
-ipcMain.handle('app:load-data', (_event, file) => {
+function readDataFile(file) {
   ensureDataDir();
   const safeFile = basename(file);
   try {
@@ -27,6 +26,37 @@ ipcMain.handle('app:load-data', (_event, file) => {
   } catch {
     return null;
   }
+}
+
+ipcMain.handle('app:save-data', (_event, file, data) => {
+  ensureDataDir();
+  const safeFile = basename(file);
+  writeFileSync(join(DATA_DIR, safeFile), JSON.stringify(data, null, 2));
+
+  if (safeFile === 'connect.json') {
+    applyHotkeys(data);
+    getBallOverlay()?.webContents.send('lexion:apply-settings', data);
+  }
+
+  return join(DATA_DIR, safeFile);
+});
+
+ipcMain.handle('app:load-data', (_event, file) => readDataFile(file));
+
+ipcMain.on('app:open-main', () => {
+  if (!mainWindow) return;
+  mainWindow.show();
+  mainWindow.focus();
+});
+
+ipcMain.on('lexion:status', (_event, status) => {
+  mainWindow?.webContents.send('lexion:status', status);
+});
+
+ipcMain.on('overlay:toggle-visible', () => {
+  if (!getBallOverlay()) return;
+  if (getBallOverlay().isVisible()) hideBallOverlay();
+  else showBallOverlay();
 });
 
 function buildMenu() {
@@ -34,20 +64,26 @@ function buildMenu() {
     {
       label: 'Settings',
       submenu: [
-        { label: 'Delete .appdata', click: () => { deleteAppData(); const win = BrowserWindow.getAllWindows()[0]; win?.webContents.reload(); } },
+        {
+          label: 'Show Floating Ball',
+          type: 'checkbox',
+          checked: true,
+          click: (item) => {
+            if (item.checked) showBallOverlay();
+            else hideBallOverlay();
+          }
+        },
         {
           label: 'Dev Tools',
           type: 'checkbox',
           checked: false,
-          click: (item, win) => {
-            if (!win) return;
-            if (item.checked) {
-              win.webContents.openDevTools();
-            } else {
-              win.webContents.closeDevTools();
-            }
+          click: (item) => {
+            if (!mainWindow) return;
+            if (item.checked) mainWindow.webContents.openDevTools();
+            else mainWindow.webContents.closeDevTools();
           }
         },
+        { label: 'Delete .appdata', click: () => { deleteAppData(); mainWindow?.webContents.reload(); } },
         { type: 'separator' },
         { role: 'quit', label: 'Quit' }
       ]
@@ -55,6 +91,21 @@ function buildMenu() {
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function createTray() {
+  const icon = nativeImage.createFromPath(join(__dirname, '../../src/renderer/assets/lesion_over.png')).resize({ width: 16, height: 16 });
+
+  tray = new Tray(icon);
+  tray.setToolTip('Lexion');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Show Lexion', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
+      { label: 'Show / Hide Floating Ball', click: () => toggleBallOverlay() },
+      { type: 'separator' },
+      { label: 'Quit', click: () => app.quit() }
+    ])
+  );
 }
 
 function createWindow() {
@@ -69,20 +120,42 @@ function createWindow() {
     }
   });
 
+  mainWindow = win;
+
+  win.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      win.hide();
+    }
+  });
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'));
   }
+
+  return win;
 }
 
 app.whenReady().then(() => {
   buildMenu();
   createWindow();
+  createBallOverlay();
+  createTray();
+  applyHotkeys(readDataFile('connect.json'));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('before-quit', () => {
+  isQuitting = true;
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on('window-all-closed', () => {
