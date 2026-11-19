@@ -1,0 +1,92 @@
+name: Bug report
+description: Report something that is broken or behaves unexpectedly.
+title: '[Bug]: '
+labels: ['bug', 'needs triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please search existing issues first, and **do not** include
+        personal information, peer IDs, TURN credentials, or audio recordings.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: The orb disappears after I move it to my second monitor.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: The orb should stay on the second monitor.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start Lexion
+        2. Connect to a partner
+        3. Right-drag the orb to the second display
+        4. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Lexion version
+      description: Shown on the About screen or in package.json.
+      placeholder: 1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Voice call
+        - Chat
+        - Floating orb / overlay
+        - Hotkeys
+        - Audio devices
+        - Settings / onboarding
+        - Packaging / install
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output
+      description: |
+        Paste relevant output from **Settings → Dev Tools** or **Settings → Overlay Dev Tools**.
+        Remove anything private before posting.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md).
+          required: true

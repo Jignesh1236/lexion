@@ -32,6 +32,33 @@ export default function Home({ user, onUserSave }) {
     content = <Settings user={user} />;
   } else if (active === 'Preferences') {
     content = <Preferences />;
+  } else if (active === 'About') {
+    const versions = window.api?.versions || {};
+    content = (
+      <section className="settings">
+        <h2>About Lexion</h2>
+        <p className="settings-hint">
+          A private, peer-to-peer voice line with an always-on-top floating orb. There is no Lexion
+          account, no analytics and no cloud sync — voice and messages travel directly between you
+          and your partner over WebRTC.
+        </p>
+
+        <p className="settings-hint">
+          Orb controls: click to open chat, hold to push-to-talk, right-drag to move, double-click
+          to toggle the microphone.
+        </p>
+
+        <p className="settings-hint">
+          Settings live in plain JSON files inside the app data folder and only leave this device as
+          part of a peer connection.
+        </p>
+
+        <p className="settings-hint">
+          Built with Electron {versions.electron || '—'}, Chromium {versions.chrome || '—'} and
+          Node.js {versions.node || '—'}.
+        </p>
+      </section>
+    );
   } else {
     content = (
       <>

@@ -153,6 +153,17 @@ export default function Ball({ size, connected, talking, partnerSpeaking, unread
     clearTimeout(suppressResetTimerRef.current);
   }, []);
 
+  useEffect(() => {
+    const onResize = () => {
+      if (stashedRef.current) return;
+      const inside = keepInside(positionRef.current, size, false);
+      setPosition(inside);
+      onPositionChange?.({ x: inside.x, y: inside.y });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [size, onPositionChange]);
+
   const savePosition = (nextPosition, nextStashed) => {
     try {
       localStorage.setItem(

@@ -74,7 +74,9 @@ export default function Settings({ user }) {
     }
 
     const toast = Math.max(1, Math.min(60, Number(toastDurationSec) || 5));
+    const existing = (await window.api.loadData('connect.json')) || {};
     const data = {
+      ...existing,
       username: sanitizePeerId(username.trim()) || username.trim(),
       partner: sanitizePeerId(partner.trim()) || partner.trim(),
       toastDurationSec: toast

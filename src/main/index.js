@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, globalShortcut, Tray, nativeImage } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, globalShortcut, Tray, nativeImage, shell } from 'electron';
 import { join, basename } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { createBallOverlay, getBallOverlay, showBallOverlay, hideBallOverlay, toggleBallOverlay, onOverlayVisibilityChange } from './overlays/ballOverlay.js';
@@ -9,12 +9,25 @@ if (profileArg) {
   app.setPath('userData', join(app.getPath('appData'), 'lexion-' + profileArg.slice('--profile='.length)));
 }
 
+app.setAppUserModelId('com.lexion.app');
+
 const DATA_DIR = join(app.getPath('userData'), '.appdata');
+const ASSET_DIR = app.isPackaged
+  ? join(process.resourcesPath, 'assets')
+  : join(__dirname, '../../src/renderer/assets');
+
+function assetPath(name) {
+  return join(ASSET_DIR, name);
+}
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 let latestOverlayStatus = null;
+
+if (!profileArg && !app.requestSingleInstanceLock()) {
+  app.quit();
+}
 
 function ensureDataDir() {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
@@ -165,7 +178,7 @@ function buildMenu() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(join(__dirname, '../../src/renderer/assets/lesion_over.png')).resize({ width: 16, height: 16 });
+  const icon = nativeImage.createFromPath(assetPath('lesion_over.png')).resize({ width: 16, height: 16 });
 
   tray = new Tray(icon);
   tray.setToolTip('Lexion');
@@ -183,7 +196,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 900,
     height: 600,
-    icon: join(__dirname, '../../src/renderer/assets/lesion_over.png'),
+    icon: assetPath('lesion_over.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -192,6 +205,11 @@ function createWindow() {
   });
 
   mainWindow = win;
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) shell.openExternal(url);
+    return { action: 'deny' };
+  });
 
   win.on('close', (event) => {
     if (!isQuitting) {
@@ -208,6 +226,16 @@ function createWindow() {
 
   return win;
 }
+
+app.on('second-instance', () => {
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
 
 app.whenReady().then(() => {
   buildMenu();
@@ -234,7 +262,12 @@ app.whenReady().then(() => {
   }
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (!mainWindow) {
+      createWindow();
+      return;
+    }
+    mainWindow.show();
+    mainWindow.focus();
   });
 }).catch((err) => {
   console.error('[main] whenReady failed:', err);

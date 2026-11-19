@@ -161,6 +161,8 @@ export default function Preferences() {
     drawIdleWave();
   }, []);
 
+  useEffect(() => stopTest, []);
+
   const startTest = async () => {
     setPermError('');
     stopTest();

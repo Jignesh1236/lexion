@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, screen } from 'electron';
 import { join } from 'path';
 
 let overlayWin = null;
+let overlayBounds = null;
 let ipcReady = false;
 let pollTimer = null;
 
@@ -41,10 +42,31 @@ function pointInArea(px, py, area) {
   return false;
 }
 
+function getVirtualBounds() {
+  const displays = screen.getAllDisplays();
+  const minX = Math.min(...displays.map((d) => d.bounds.x));
+  const minY = Math.min(...displays.map((d) => d.bounds.y));
+  const maxX = Math.max(...displays.map((d) => d.bounds.x + d.bounds.width));
+  const maxY = Math.max(...displays.map((d) => d.bounds.y + d.bounds.height));
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+function syncOverlayBounds() {
+  if (!overlayWin || overlayWin.isDestroyed()) return;
+  overlayBounds = getVirtualBounds();
+  overlayWin.setBounds(overlayBounds);
+  interactive = false;
+  try {
+    overlayWin.setIgnoreMouseEvents(true, { forward: true });
+  } catch (err) {
+    console.warn('[ballOverlay] reset mouse ignore after display change failed:', err);
+  }
+}
+
 function updateInteractive() {
   if (!overlayWin) return;
 
-  const bounds = screen.getPrimaryDisplay().bounds;
+  const bounds = overlayBounds || getVirtualBounds();
   const cursor = screen.getCursorScreenPoint();
   const px = cursor.x - bounds.x;
   const py = cursor.y - bounds.y;
@@ -103,7 +125,9 @@ function registerOverlayIpc() {
 }
 
 export function createBallOverlay() {
-  const { x, y, width, height } = screen.getPrimaryDisplay().bounds;
+  const bounds = getVirtualBounds();
+  overlayBounds = bounds;
+  const { x, y, width, height } = bounds;
 
   overlayWin = new BrowserWindow({
     x,
@@ -183,6 +207,10 @@ export function createBallOverlay() {
     stopPolling();
     overlayWin = null;
   });
+
+  screen.on('display-added', syncOverlayBounds);
+  screen.on('display-removed', syncOverlayBounds);
+  screen.on('display-metrics-changed', syncOverlayBounds);
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     overlayWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/overlay.html`).catch((err) => console.error('[ballOverlay] loadURL error:', err));

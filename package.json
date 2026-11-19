@@ -1,16 +1,38 @@
 {
   "name": "lexion",
+  "productName": "Lexion",
   "version": "1.0.0",
-  "description": "Blank Electron app",
+  "description": "Private peer-to-peer voice and chat with an always-on-top floating orb.",
+  "author": "Lexion contributors",
+  "license": "MIT",
+  "private": true,
   "main": "./out/main/index.js",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "keywords": [
+    "electron",
+    "webrtc",
+    "peerjs",
+    "voice-chat",
+    "p2p",
+    "overlay"
+  ],
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:second": "electron-vite dev -- --profile=second",
+    "build": "electron-vite build",
     "start": "electron-vite preview",
-    "build": "electron-vite build"
+    "dist": "npm run build && electron-builder",
+    "dist:dir": "npm run build && electron-builder --dir",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^33.0.0",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^5.0.0",
     "vite": "^7.3.6"
   },
@@ -18,5 +40,55 @@
     "peerjs": "^1.5.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
+  },
+  "build": {
+    "appId": "com.lexion.app",
+    "productName": "Lexion",
+    "copyright": "Copyright © 2026 Lexion contributors",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "src/renderer/assets",
+        "to": "assets"
+      }
+    ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.png",
+      "category": "public.app-category.social-networking"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png",
+      "category": "Network"
+    }
   }
 }

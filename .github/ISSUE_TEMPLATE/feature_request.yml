@@ -1,0 +1,56 @@
+name: Feature request
+description: Suggest an idea or improvement for Lexion.
+title: '[Feature]: '
+labels: ['enhancement', 'needs triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Lexion is intentionally small and minimal. Please explain the problem you are trying
+        to solve before describing the solution.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      placeholder: I often cannot tell whether my partner can hear me.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: Show a small mute icon on the orb while the microphone is disabled.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Any other approaches or workarounds you have tried.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Voice call
+        - Chat
+        - Floating orb / overlay
+        - Hotkeys
+        - Audio devices
+        - Settings / onboarding
+        - Packaging / install
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
